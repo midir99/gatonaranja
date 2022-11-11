@@ -1,0 +1,11 @@
+[Unit]
+Description=gatonaranja service
+After=multi-user.target
+
+[Service]
+Type=simple
+Restart=always
+ExecStart=TOKEN=YOUR-TOKEN-HERE AUTHORIZED_USERS=YOUR-AUTHORIZED-USERS-HERE LOGFILE=/var/log/gatonaranja/gatonaranja.log gatonaranja
+
+[Install]
+WantedBy=multi-user.target
