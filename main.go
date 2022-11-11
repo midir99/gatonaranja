@@ -249,7 +249,7 @@ func main() {
 	// Set up logging
 	logFileEnv := strings.TrimSpace(os.Getenv("LOGFILE"))
 	if logFileEnv != "" {
-		f, err := os.OpenFile("LOGFILE", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		f, err := os.OpenFile(logFileEnv, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
 			log.Fatalf("Unable to start since can not open the file pointed by LOGFILE (environment variable) %s: %s", logFileEnv, err)
 		}
