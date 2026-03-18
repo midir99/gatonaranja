@@ -14,74 +14,128 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-// VideoStartEndPattern is a regex to match patterns like:
+const InvalidVideoSecond = -1
+
+type DownloadRequest struct {
+	startSecond int
+	endSecond   int
+	audioOnly   bool
+	videoURL    string
+}
+
+// TimestampRangePattern matches the structure of timestamp ranges in
+// MM:SS-MM:SS or HH:MM:SS-HH:MM:SS format, such as:
+//
 //	1:05-1:10
 //	0:10-0:51
 //	17:49-58:09
 //	21:50-58:00
 //	3:17:55-4:17:59
 //	41:40-1:23:00
-// I chose this pattern because at the time I wrote this code, in the following link:
+//
+// Detailed validation, such as checking numeric bounds, is performed
+// separately when parsing the timestamps.
+//
+// The optional hour component is limited to two digits because, when this
+// code was originally written, YouTube documentation indicated a maximum
+// video length of 12 hours.
 // https://support.google.com/youtube/answer/71673
-// YouTube indicated that the max video length was 12 hours. I've seen YouTube videos
-// that last more than 99 hours, so if you want to match those you could try expanding
-// my regex.
-var VideoStartEndPattern = regexp.MustCompile(`([\d]{1,2}:)?[\d]{1,2}:[\d]{1,2}-([\d]{1,2}:)?[\d]{1,2}:[\d]{1,2}`)
+var TimestampRangePattern = regexp.MustCompile(`([\d]{1,2}:)?[\d]{1,2}:[\d]{1,2}-([\d]{1,2}:)?[\d]{1,2}:[\d]{1,2}`)
 
-const InvalidVideoSecond = -1
-
-func Spot2Second(spot string) (int, error) {
-	parts := strings.Split(spot, ":")
-	partsLen := len(parts)
-	if partsLen < 2 {
-		return 0, fmt.Errorf("unable to parse spot %s", spot)
-	}
-	// parse seconds and validate they are less than 60
-	seconds, err := strconv.Atoi(parts[1])
+func parseSeconds(seconds string) (int, error) {
+	invalidValueErr := fmt.Errorf("invalid seconds value %s: must be between 0 and 59", seconds)
+	secondsInt, err := strconv.Atoi(seconds)
 	if err != nil {
-		return 0, fmt.Errorf("unable to parse spot %s", spot)
+		return 0, invalidValueErr
 	}
-	if seconds > 59 {
-		return 0, fmt.Errorf("unable to parse spot %s", spot)
+	if secondsInt < 0 || secondsInt > 59 {
+		return 0, invalidValueErr
 	}
-	// parse minutes and validate they are less than 60
-	minutes, err := strconv.Atoi(parts[0])
-	if err != nil {
-		return 0, fmt.Errorf("unable to parse spot %s", spot)
-	}
-	if minutes > 59 {
-		return 0, fmt.Errorf("unable to parse spot %s", spot)
-	}
-	// turn the spot into a second by adding seconds and minutes
-	second := seconds + minutes*60
-	// if spot contains hours, parse hours and validate they are less than 24
-	if partsLen == 3 {
-		hours, err := strconv.Atoi(parts[2])
-		if err != nil {
-			return 0, fmt.Errorf("unable to parse spot %s", spot)
-		}
-		if hours > 11 {
-			return 0, fmt.Errorf("unable to parse spot %s", spot)
-		}
-		// add the hours to the second representing the spot
-		second += hours * 60 * 60
-	}
-	return second, nil
+	return secondsInt, nil
 }
 
-func ParseStartEndSeconds(span string) (int, int, error) {
-	if !VideoStartEndPattern.MatchString(span) {
-		return 0, 0, fmt.Errorf("unable to parse video span %s", span)
+func parseMinutes(minutes string) (int, error) {
+	invalidValueErr := fmt.Errorf("invalid minutes value %s: must be between 0 and 59", minutes)
+	minutesInt, err := strconv.Atoi(minutes)
+	if err != nil {
+		return 0, invalidValueErr
 	}
-	parts := strings.Split(span, "-")
+	if minutesInt < 0 || minutesInt > 59 {
+		return 0, invalidValueErr
+	}
+	return minutesInt, nil
+}
+
+func parseHours(hours string) (int, error) {
+	invalidValueErr := fmt.Errorf("invalid hours value %s: must be between 0 and 11", hours)
+	hoursInt, err := strconv.Atoi(hours)
+	if err != nil {
+		return 0, invalidValueErr
+	}
+	if hoursInt < 0 || hoursInt > 11 {
+		return 0, invalidValueErr
+	}
+	return hoursInt, nil
+}
+
+// TimestampToSeconds converts a timestamp in MM:SS or HH:MM:SS format into
+// its total number of seconds.
+func TimestampToSeconds(timestamp string) (int, error) {
+	parts := strings.Split(timestamp, ":")
+	partsNumber := len(parts)
+	totalSeconds := 0
+	switch {
+	case partsNumber == 2:
+		// Parse minutes and seconds (MM:SS), for example:
+		// The string "00:10" is converted into this array: ["00", "10"]
+		totalSeconds, err := parseSeconds(parts[1])
+		if err != nil {
+			return 0, err
+		}
+		minutes, err := parseMinutes(parts[0])
+		if err != nil {
+			return 0, err
+		}
+		totalSeconds += minutes * 60
+	case partsNumber == 3:
+		// Parse hours, minutes and seconds (HH:MM:SS), for example:
+		// The string "01:05:10" is converted into this array: ["01", "05", "10"]
+		totalSeconds, err := parseSeconds(parts[2])
+		if err != nil {
+			return 0, err
+		}
+		minutes, err := parseMinutes(parts[1])
+		if err != nil {
+			return 0, err
+		}
+		totalSeconds += minutes * 60
+		hours, err := parseHours(parts[0])
+		if err != nil {
+			return 0, err
+		}
+		totalSeconds += hours * 60 * 60
+	default:
+		return 0, fmt.Errorf("invalid timestamp %s: it must follow the format HH:MM:SS or MM:SS", timestamp)
+	}
+	return totalSeconds, nil
+}
+
+// TimestampRangeToSeconds parses a timestamp range in MM:SS-MM:SS or
+// HH:MM:SS-HH:MM:SS format, returns the start and end values in seconds,
+// and validates that the start time is before the end time.
+func TimestampRangeToSeconds(timestampRange string) (int, int, error) {
+	if !TimestampRangePattern.MatchString(timestampRange) {
+		return 0, 0, fmt.Errorf("unable to parse video span %s", timestampRange)
+	}
+	parts := strings.Split(timestampRange, "-")
 	if len(parts) != 2 {
-		return 0, 0, fmt.Errorf("unable to parse video span %s", span)
+		return 0, 0, fmt.Errorf("unable to parse video span %s", timestampRange)
 	}
-	startSecond, err := Spot2Second(parts[0])
+	startSecond, err := TimestampToSeconds(parts[0])
 	if err != nil {
 		return 0, 0, err
 	}
-	endSecond, err := Spot2Second(parts[1])
+	endSecond, err := TimestampToSeconds(parts[1])
 	if err != nil {
 		return 0, 0, err
 	}
@@ -91,42 +145,68 @@ func ParseStartEndSeconds(span string) (int, int, error) {
 	return startSecond, endSecond, nil
 }
 
-func LoadDownloadConfigFromMsg(msg string) (*url.URL, int, int, bool, error) {
-	args := strings.Split(msg, " ")
-	videoUrl, err := url.Parse(args[0])
-	if err != nil {
-		return &url.URL{}, InvalidVideoSecond, InvalidVideoSecond, false, fmt.Errorf("unable to parse the 1st argument (video URL)")
-	}
-	argsLen := len(args)
-	if argsLen == 1 {
-		return videoUrl, InvalidVideoSecond, InvalidVideoSecond, false, nil
-	}
-	// at this point, argsLen is greather than 1
-	var (
-		startSecond = InvalidVideoSecond
-		endSecond   = InvalidVideoSecond
-		audioOnly   = false
-		secondArg   = strings.ToLower(args[1])
+func ParseDownloadRequest(downloadRequestString string) (DownloadRequest, error) {
+
+	invalidDownloadRequestErrTemplate := `invalid download request %q: expected one of the following formats:
+
+https://www.youtube.com/watch?v=J---aiyznGQ
+https://www.youtube.com/watch?v=J---aiyznGQ audio
+https://www.youtube.com/watch?v=J---aiyznGQ 00:10-00:20
+https://www.youtube.com/watch?v=J---aiyznGQ 00:10-00:20 audio
+
+details: %w`
+
+	invalidDownloadRequestErr := fmt.Errorf(
+		invalidDownloadRequestErrTemplate,
+		downloadRequestString,
+		fmt.Errorf("download request does not follow the format"),
 	)
-	if secondArg == "audio" {
-		return videoUrl, startSecond, endSecond, true, nil
+
+	args := strings.Fields(downloadRequestString)
+	argsNumber := len(args)
+
+	if argsNumber == 0 {
+		return DownloadRequest{}, invalidDownloadRequestErr
 	}
-	startSecond, endSecond, err = ParseStartEndSeconds(secondArg)
+
+	downloadRequest := DownloadRequest{}
+
+	videoURL, err := url.Parse(args[0])
 	if err != nil {
-		return &url.URL{}, InvalidVideoSecond, InvalidVideoSecond, false, fmt.Errorf("unable to parse the 2nd argument (video spots to make the cut or audio word)")
+		return DownloadRequest{}, fmt.Errorf(invalidDownloadRequestErrTemplate, downloadRequestString, err)
 	}
-	if argsLen == 2 {
-		return videoUrl, startSecond, endSecond, audioOnly, nil
+	downloadRequest.videoURL = videoURL.String()
+
+	switch {
+	case argsNumber == 1:
+		return downloadRequest, nil
+	case argsNumber == 2:
+		if strings.ToLower(args[1]) == "audio" {
+			downloadRequest.audioOnly = true
+			return downloadRequest, nil
+		}
+		startSecond, endSecond, err := TimestampRangeToSeconds(args[1])
+		if err != nil {
+			return DownloadRequest{}, fmt.Errorf(invalidDownloadRequestErrTemplate, downloadRequestString, err)
+		}
+		downloadRequest.startSecond = startSecond
+		downloadRequest.endSecond = endSecond
+		return downloadRequest, nil
+	case argsNumber == 3:
+		startSecond, endSecond, err := TimestampRangeToSeconds(args[1])
+		if err != nil {
+			return DownloadRequest{}, fmt.Errorf(invalidDownloadRequestErrTemplate, downloadRequestString, err)
+		}
+		downloadRequest.startSecond = startSecond
+		downloadRequest.endSecond = endSecond
+		if strings.ToLower(args[2]) == "audio" {
+			downloadRequest.audioOnly = true
+			return downloadRequest, nil
+		}
+		return DownloadRequest{}, invalidDownloadRequestErr
+	default:
+		return DownloadRequest{}, invalidDownloadRequestErr
 	}
-	// at this point, argsLen is greather than 2
-	if argsLen > 3 {
-		return &url.URL{}, InvalidVideoSecond, InvalidVideoSecond, false, fmt.Errorf("more than 3 arguments were used")
-	}
-	thirdArg := args[2]
-	if thirdArg != "audio" {
-		return &url.URL{}, InvalidVideoSecond, InvalidVideoSecond, false, fmt.Errorf("unable to parse the 3rd argument: this argument can only be the audio word")
-	}
-	return videoUrl, startSecond, endSecond, true, nil
 }
 
 func CutVideo(videoFilename string, startSecond, endSecond int, audioOnly bool) (string, error) {
@@ -295,7 +375,7 @@ func main() {
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Ok, just wait a second...")
 			msg.ReplyToMessageID = update.Message.MessageID
 			bot.Send(msg)
-			videoUrl, startSecond, endSecond, audioOnly, err := LoadDownloadConfigFromMsg(update.Message.Text)
+			videoUrl, startSecond, endSecond, audioOnly, err := ParseDownloadRequest(update.Message.Text)
 			if err != nil {
 				log.Printf("[%s %d] Unable to complete request %s: %s", update.Message.From.UserName, update.Message.From.ID, update.Message.Text, err)
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "I'm sorry I was not able to download your video ☹")
