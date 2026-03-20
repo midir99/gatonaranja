@@ -1,0 +1,2 @@
+Make the download slots a flag parameters
+Enable graceful shutdown by listening to Ctrl+C or SIGTERM SIGKIll
