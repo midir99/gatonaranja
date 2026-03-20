@@ -1,2 +1,3 @@
 Make the download slots a flag parameters
 Enable graceful shutdown by listening to Ctrl+C or SIGTERM SIGKIll
+Ask the AI to show you the places where errors are not being handled, like the Telegram bot calls
