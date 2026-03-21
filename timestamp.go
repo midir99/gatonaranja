@@ -30,7 +30,9 @@ const EndSecond = -1
 // code was originally written, YouTube documentation indicated a maximum
 // video length of 12 hours.
 // https://support.google.com/youtube/answer/71673
-var TimestampRangePattern = regexp.MustCompile(`^(start|([\d]{1,2}:)?[\d]{1,2}:[\d]{1,2})-(end|([\d]{1,2}:)?[\d]{1,2}:[\d]{1,2})$`)
+var TimestampRangePattern = regexp.MustCompile(
+	`^(start|([\d]{1,2}:)?[\d]{1,2}:[\d]{1,2})-(end|([\d]{1,2}:)?[\d]{1,2}:[\d]{1,2})$`,
+)
 
 func parseSeconds(seconds string) (int, error) {
 	invalidValueErr := fmt.Errorf("invalid seconds value %s: must be between 0 and 59", seconds)

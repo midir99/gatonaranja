@@ -1,3 +1,10 @@
 Make the download slots a flag parameters
 Enable graceful shutdown by listening to Ctrl+C or SIGTERM SIGKIll
 Ask the AI to show you the places where errors are not being handled, like the Telegram bot calls
+
+
+ytdlp.go (line 500): ParseDownloadRequest accepts many non-URLs as valid input because url.Parse only checks syntax, not that the request is an actual http/https URL with a host. Inputs like "hello" or "youtube.com/foo" will pass parsing and fail later in yt-dlp, which makes user feedback worse. I’d validate Scheme and Host explicitly.
+
+telegram.go (line 258): the current “goroutine per request + semaphore inside goroutine” pattern keeps the update loop responsive, but it still allows an unbounded number of waiting goroutines if many requests arrive while all 5 slots are busy. That’s fine for a small/private bot, but if usage grows, a bounded worker queue would be safer than unlimited parked goroutines.
+
+cmd.go (line 34): ParseConfig uses the global flag package directly. That is okay for production startup, but it makes repeated parsing in tests awkward and couples config parsing to process-global state. If you plan to add tests, switching to a dedicated flag.FlagSet would make the CLI layer much easier to exercise.

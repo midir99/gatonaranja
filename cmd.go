@@ -20,8 +20,18 @@ func ParseConfig() (Config, error) {
 	// Parse the flags
 	var authorizedUsers string
 	var telegramBotToken string
-	flag.StringVar(&authorizedUsers, "authorized-users", "", "A comma-separated list of Telegram user IDs allowed to use the bot (defaults to AUTHORIZED_USERS). If no IDs are specified, everyone can use the bot")
-	flag.StringVar(&telegramBotToken, "telegram-bot-token", "", "The Telegram bot token used to authenticate this bot (defaults to TELEGRAM_BOT_TOKEN)")
+	flag.StringVar(
+		&authorizedUsers,
+		"authorized-users",
+		"",
+		"A comma-separated list of Telegram user IDs allowed to use the bot (defaults to AUTHORIZED_USERS). If no IDs are specified, everyone can use the bot",
+	)
+	flag.StringVar(
+		&telegramBotToken,
+		"telegram-bot-token",
+		"",
+		"The Telegram bot token used to authenticate this bot (defaults to TELEGRAM_BOT_TOKEN)",
+	)
 	flag.Parse()
 
 	// Process the authorized-users value
