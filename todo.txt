@@ -7,4 +7,8 @@ ytdlp.go (line 500): ParseDownloadRequest accepts many non-URLs as valid input b
 
 telegram.go (line 258): the current “goroutine per request + semaphore inside goroutine” pattern keeps the update loop responsive, but it still allows an unbounded number of waiting goroutines if many requests arrive while all 5 slots are busy. That’s fine for a small/private bot, but if usage grows, a bounded worker queue would be safer than unlimited parked goroutines.
 
+^
+|
+Maybe for above I implement bouned worker queue or per-user queue limits...
+
 cmd.go (line 34): ParseConfig uses the global flag package directly. That is okay for production startup, but it makes repeated parsing in tests awkward and couples config parsing to process-global state. If you plan to add tests, switching to a dedicated flag.FlagSet would make the CLI layer much easier to exercise.
