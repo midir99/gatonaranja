@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -76,12 +77,12 @@ func TimestampToSeconds(timestamp string) (int, error) {
 	invalidTimestampErr := fmt.Errorf("invalid timestamp %q: expected HH:MM:SS, MM:SS, start, or end", timestamp)
 	parts := strings.Split(timestamp, ":")
 	partsNumber := len(parts)
-	switch {
-	case partsNumber == 1:
+	switch partsNumber {
+	case 1:
 		// Parse keywords "start" or "end"
 		// The string "start" is converted into this array: ["start"]
 		// The string "end" is converted into this array: ["end"]
-		totalSeconds := 0
+		var totalSeconds int
 		switch parts[0] {
 		case "start":
 			totalSeconds = StartSecond
@@ -91,7 +92,7 @@ func TimestampToSeconds(timestamp string) (int, error) {
 			return 0, invalidTimestampErr
 		}
 		return totalSeconds, nil
-	case partsNumber == 2:
+	case 2:
 		// Parse minutes and seconds (MM:SS), for example:
 		// The string "00:10" is converted into this array: ["00", "10"]
 		totalSeconds, err := parseSeconds(parts[1])
@@ -104,7 +105,7 @@ func TimestampToSeconds(timestamp string) (int, error) {
 		}
 		totalSeconds += minutes * 60
 		return totalSeconds, nil
-	case partsNumber == 3:
+	case 3:
 		// Parse hours, minutes and seconds (HH:MM:SS), for example:
 		// The string "01:05:10" is converted into this array: ["01", "05", "10"]
 		totalSeconds, err := parseSeconds(parts[2])
@@ -168,7 +169,7 @@ func TimestampRangeToSeconds(timestampRange string) (int, int, error) {
 	// Skip the start >= end validation when endSecond is EndSecond, since
 	// the actual end of the video is not known yet and will be resolved later.
 	if endSecond != EndSecond && startSecond >= endSecond {
-		return 0, 0, fmt.Errorf("start timestamp must be before end timestamp")
+		return 0, 0, errors.New("start timestamp must be before end timestamp")
 	}
 	return startSecond, endSecond, nil
 }

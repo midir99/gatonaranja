@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 
@@ -17,33 +17,42 @@ func CheckSystemHasRequiredDependencies() error {
 	for _, dep := range dependencies {
 		_, err := exec.LookPath(dep)
 		if err != nil {
-			return fmt.Errorf("dependency %s is not installed in the system: %s", dep, err)
+			return fmt.Errorf("dependency %s is not installed in the system: %w", dep, err)
 		}
 	}
 	return nil
 }
 
 func main() {
+	var logger = slog.New(
+		slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		}),
+	)
+
 	// Check system has required dependencies
 	err := CheckSystemHasRequiredDependencies()
 	if err != nil {
-		log.Fatalf("Startup failed while checking dependencies: %s", err)
+		logger.Error("Startup failed while checking dependencies", "error", err)
+		os.Exit(1)
 	}
 
 	// Parse the flags
 	config, err := ParseConfig(os.Args[1:])
 	if err != nil {
-		log.Fatalf("Startup failed: invalid configuration: %s", err)
+		logger.Error("Startup failed: invalid configuration", "error", err)
+		os.Exit(1)
 	}
 
 	// Bootstrap the bot
 	bot, err := tgbotapi.NewBotAPI(config.TelegramBotToken)
 	if err != nil {
-		log.Fatalf("Startup failed: unable to create Telegram bot: %s", err)
+		logger.Error("Startup failed: unable to create Telegram bot", "error", err)
+		os.Exit(1)
 	}
-	log.Printf("Telegram bot started as @%s", bot.Self.UserName)
+	logger.Info("Telegram bot started", "bot_user_id", bot.Self.ID, "bot_user_name", bot.Self.UserName) // #nosec G706
 	// Set up a semaphore for limiting the downloads
 	downloadSlots := make(chan struct{}, 5)
-	log.Printf("Starting Telegram update loop with %d download slots", cap(downloadSlots))
-	RunTelegramBot(bot, config.AuthorizedUsers, downloadSlots)
+	logger.Info("Starting Telegram update loop", "download_slots", cap(downloadSlots))
+	RunTelegramBot(bot, logger, config.AuthorizedUsers, downloadSlots)
 }

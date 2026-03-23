@@ -2,10 +2,13 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // DownloadRequest describes the URL, timestamp range, and audio-only option
@@ -45,16 +48,7 @@ func validateYouTubeURL(rawURL string) (string, error) {
 // URL audio, URL TIMESTAMP_RANGE, or URL TIMESTAMP_RANGE audio, and returns
 // the corresponding DownloadRequest.
 func ParseDownloadRequest(downloadRequestString string) (DownloadRequest, error) {
-	invalidDownloadRequestErrTemplate := `invalid download request %q: expected one of the following formats:
-
-https://www.youtube.com/watch?v=J---aiyznGQ
-https://www.youtube.com/watch?v=J---aiyznGQ audio
-https://www.youtube.com/watch?v=J---aiyznGQ 00:10-00:20
-https://www.youtube.com/watch?v=J---aiyznGQ 00:10-00:20 audio
-https://www.youtube.com/watch?v=J---aiyznGQ start-00:20 audio
-https://www.youtube.com/watch?v=J---aiyznGQ 00:10-end
-
-details: %w`
+	invalidDownloadRequestErrTemplate := `invalid download request %q: %w; expected URL [TIMESTAMP_RANGE] [audio]`
 
 	invalidDownloadRequestErr := fmt.Errorf(
 		invalidDownloadRequestErrTemplate,
@@ -77,14 +71,14 @@ details: %w`
 	}
 	downloadRequest.videoURL = videoURL
 
-	switch {
-	case argsNumber == 1:
+	switch argsNumber {
+	case 1:
 		// If its 1 argument we just received the video URL.
 		// Example: https://www.youtube.com/watch?v=J---aiyznGQ
 		downloadRequest.startSecond = StartSecond
 		downloadRequest.endSecond = EndSecond
 		return downloadRequest, nil
-	case argsNumber == 2:
+	case 2:
 		// If its 2 arguments we received the video URL and a timestamp range or the audio flag.
 		// Example: https://www.youtube.com/watch?v=J---aiyznGQ start-0:10
 		// Example: https://www.youtube.com/watch?v=J---aiyznGQ audio
@@ -92,19 +86,19 @@ details: %w`
 			downloadRequest.audioOnly = true
 			return downloadRequest, nil
 		}
-		startSecond, endSecond, err := TimestampRangeToSeconds(args[1])
-		if err != nil {
-			return DownloadRequest{}, fmt.Errorf(invalidDownloadRequestErrTemplate, downloadRequestString, err)
+		startSecond, endSecond, err2 := TimestampRangeToSeconds(args[1])
+		if err2 != nil {
+			return DownloadRequest{}, fmt.Errorf(invalidDownloadRequestErrTemplate, downloadRequestString, err2)
 		}
 		downloadRequest.startSecond = startSecond
 		downloadRequest.endSecond = endSecond
 		return downloadRequest, nil
-	case argsNumber == 3:
+	case 3:
 		// If its 3 arguments we received the video URL, a timestamp range and the audio flag.
 		// Example: https://www.youtube.com/watch?v=J---aiyznGQ start-0:10 audio
-		startSecond, endSecond, err := TimestampRangeToSeconds(args[1])
-		if err != nil {
-			return DownloadRequest{}, fmt.Errorf(invalidDownloadRequestErrTemplate, downloadRequestString, err)
+		startSecond, endSecond, err2 := TimestampRangeToSeconds(args[1])
+		if err2 != nil {
+			return DownloadRequest{}, fmt.Errorf(invalidDownloadRequestErrTemplate, downloadRequestString, err2)
 		}
 		downloadRequest.startSecond = startSecond
 		downloadRequest.endSecond = endSecond
@@ -128,7 +122,7 @@ func SecondsToYTDLDownloadSections(startSecond, endSecond int) (string, error) {
 	case endSecond < 0 && endSecond != EndSecond:
 		return "", fmt.Errorf("invalid end second %d", endSecond)
 	case endSecond != EndSecond && startSecond >= endSecond:
-		return "", fmt.Errorf("start second must be lower than end second")
+		return "", errors.New("start second must be lower than end second")
 	}
 
 	start := SecondsToTimestamp(startSecond)
@@ -142,7 +136,7 @@ func SecondsToYTDLDownloadSections(startSecond, endSecond int) (string, error) {
 
 // BuildYTDLPCommand builds the yt-dlp command for the download request,
 // including optional section download and audio extraction flags, and
-// returns it as a slice of arguments ready to be passed to exec.Command.
+// returns it as a slice of arguments ready to be passed to "[exec.Command]".
 func (dr DownloadRequest) BuildYTDLPCommand() ([]string, error) {
 	cmd := []string{"yt-dlp", "--no-simulate", "--print", "after_move:filepath"}
 
@@ -183,20 +177,24 @@ func (dr DownloadRequest) Download() (string, error) {
 		return "", err
 	}
 
-	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...) // #nosec G204
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("yt-dlp failed: %s: %s", err, stderr.String())
+	err = cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("yt-dlp failed: %w: %s", err, stderr.String())
 	}
 
 	outputPath := strings.TrimSpace(stdout.String())
 	if outputPath == "" {
-		return "", fmt.Errorf("yt-dlp succeeded but did not print the output filepath")
+		return "", errors.New("yt-dlp succeeded but did not print the output filepath")
 	}
 
 	return outputPath, nil

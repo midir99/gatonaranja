@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -19,8 +20,8 @@ type Config struct {
 func validateAuthorizedUsers(authorizedUsers string) ([]int64, error) {
 	authorizedUsersIntArray := []int64{}
 	if authorizedUsers != "" {
-		authorizedUsersArray := strings.Split(authorizedUsers, ",")
-		for _, userID := range authorizedUsersArray {
+		authorizedUsersArray := strings.SplitSeq(authorizedUsers, ",")
+		for userID := range authorizedUsersArray {
 			userIDInt, err := strconv.ParseInt(strings.TrimSpace(userID), 10, 0)
 			if err != nil {
 				return nil, fmt.Errorf("invalid authorized user ID %q: must be a valid Telegram user ID", userID)
@@ -35,7 +36,7 @@ func validateAuthorizedUsers(authorizedUsers string) ([]int64, error) {
 func validateTelegramBotToken(telegramBotToken string) (string, error) {
 	// Process the telegram-bot-token value
 	if telegramBotToken == "" {
-		return "", fmt.Errorf("telegram bot token is required: use -telegram-bot-token or TELEGRAM_BOT_TOKEN")
+		return "", errors.New("telegram bot token is required: use -telegram-bot-token or TELEGRAM_BOT_TOKEN")
 	}
 	return telegramBotToken, nil
 }
@@ -55,7 +56,6 @@ func flagOrEnv(variableValue, variableEnvName string) string {
 // ParseConfig parses command-line flags, falls back to environment variables
 // when needed, and returns the runtime configuration for the bot.
 func ParseConfig(args []string) (Config, error) {
-
 	// Use a FlagSet for easier unit testing
 	fs := flag.NewFlagSet("gatonaranja", flag.ContinueOnError)
 

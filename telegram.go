@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"os"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -28,39 +28,49 @@ https://www.youtube.com/watch?v=AqjB8DGt85U start-0:10
 https://www.youtube.com/watch?v=AqjB8DGt85U 0:10-end`
 
 // logTelegramSendError logs a Telegram send failure for the given user.
-func logTelegramSendError(userName string, userID int64, err error) {
-	log.Printf(
-		"[%s %d] Failed to send Telegram message: %s",
-		userName,
-		userID,
-		err,
-	)
+func logTelegramSendError(logger *slog.Logger, userName string, userID int64, err error) {
+	logger.Error(
+		"Failed to send Telegram message",
+		"user_id", userID,
+		"user_name", userName,
+		"error", err,
+	) // #nosec G706
 }
 
 // sendReply sends a text reply to the given Telegram message and logs any
 // error returned by the Telegram API.
-func sendReply(bot *tgbotapi.BotAPI, message *tgbotapi.Message, text string) {
+func sendReply(
+	bot *tgbotapi.BotAPI,
+	logger *slog.Logger,
+	message *tgbotapi.Message,
+	text string,
+) {
 	msg := tgbotapi.NewMessage(message.Chat.ID, text)
 	msg.ReplyToMessageID = message.MessageID
 	_, err := bot.Send(msg)
 	if err != nil {
-		logTelegramSendError(message.From.UserName, message.From.ID, err)
+		logTelegramSendError(logger, message.From.UserName, message.From.ID, err)
 	}
 }
 
 // handleDownloadRequest executes the download request and replies to the
 // original Telegram message with the downloaded media or an error message.
-func handleDownloadRequest(bot *tgbotapi.BotAPI, message *tgbotapi.Message, downloadRequest DownloadRequest) {
+func handleDownloadRequest(
+	bot *tgbotapi.BotAPI,
+	logger *slog.Logger,
+	message *tgbotapi.Message,
+	downloadRequest DownloadRequest,
+) {
 	mediaFilename, err := downloadRequest.Download()
 	if err != nil {
-		log.Printf(
-			"[%s %d] Failed to download request %q: %s",
-			message.From.UserName,
-			message.From.ID,
-			message.Text,
-			err,
+		logger.Error(
+			"Failed to download request",
+			"user_id", message.From.ID,
+			"user_name", message.From.UserName,
+			"message_text", message.Text,
+			"error", err,
 		)
-		sendReply(bot, message, "I could not download your video :(")
+		sendReply(bot, logger, message, "I could not download your video :(")
 		return
 	}
 
@@ -76,18 +86,30 @@ func handleDownloadRequest(bot *tgbotapi.BotAPI, message *tgbotapi.Message, down
 	}
 	_, err = bot.Send(mediaMsg)
 	if err == nil {
-		log.Printf("[%s %d] Completed request %q", message.From.UserName, message.From.ID, message.Text)
+		logger.Info(
+			"Completed request",
+			"user_id", message.From.ID,
+			"user_name", message.From.UserName,
+			"message_text", message.Text,
+		)
 	} else {
-		sendReply(bot, message, "I downloaded it, but I couldn't send it to you.")
-		logTelegramSendError(message.From.UserName, message.From.ID, err)
+		logger.Error(
+			"Failed to send media",
+			"user_id", message.From.ID,
+			"user_name", message.From.UserName,
+			"message_text", message.Text,
+			"error", err,
+		)
+		sendReply(bot, logger, message, "I downloaded it, but I couldn't send it to you.")
 	}
-	if err := os.Remove(mediaFilename); err != nil {
-		log.Printf(
-			"[%s %d] Failed to remove downloaded file %q: %s",
-			message.From.UserName,
-			message.From.ID,
-			mediaFilename,
-			err,
+	err = os.Remove(mediaFilename)
+	if err != nil {
+		logger.Warn(
+			"Failed to remove downloaded file",
+			"user_id", message.From.ID,
+			"user_name", message.From.UserName,
+			"file_name", mediaFilename,
+			"error", err,
 		)
 	}
 }
@@ -97,6 +119,7 @@ func handleDownloadRequest(bot *tgbotapi.BotAPI, message *tgbotapi.Message, down
 // and dispatches the download work asynchronously.
 func handleMessage(
 	bot *tgbotapi.BotAPI,
+	logger *slog.Logger,
 	message *tgbotapi.Message,
 	authorizedUsers []int64,
 	downloadSlots chan struct{},
@@ -106,43 +129,53 @@ func handleMessage(
 	}
 	// Check if user is authorized
 	if !UserIsAuthorized(message.From.ID, authorizedUsers) {
-		log.Printf("[%s %d] Rejected unauthorized request: %q", message.From.UserName, message.From.ID, message.Text)
-		sendReply(bot, message, "You are not authorized to use this bot")
+		logger.Warn(
+			"Rejected unauthorized request",
+			"user_id", message.From.ID,
+			"user_name", message.From.UserName,
+			"message_text", message.Text,
+		) // #nosec G706
+		sendReply(bot, logger, message, "You are not authorized to use this bot")
 		return
 	}
-	log.Printf("[%s %d] Received request: %q", message.From.UserName, message.From.ID, message.Text)
+	logger.Info(
+		"Received request",
+		"user_id", message.From.ID,
+		"user_name", message.From.UserName,
+		"message_text", message.Text,
+	) // #nosec G706
 
 	// Let the user know you are working on the download
 	downloadRequest, err := ParseDownloadRequest(message.Text)
 	if err != nil {
-		log.Printf(
-			"[%s %d] Failed to parse request %q: %s",
-			message.From.UserName,
-			message.From.ID,
-			message.Text,
-			err,
-		)
-		sendReply(bot, message, usageMessage)
+		logger.Warn(
+			"Failed to parse request",
+			"user_id", message.From.ID,
+			"user_name", message.From.UserName,
+			"message_text", message.Text,
+			"error", err,
+		) // #nosec G706
+		sendReply(bot, logger, message, usageMessage)
 		return
 	}
 
-	sendReply(bot, message, "Wait a minute...")
+	sendReply(bot, logger, message, "Wait a minute...")
 	go func() {
 		downloadSlots <- struct{}{}
 		defer func() { <-downloadSlots }()
 
-		handleDownloadRequest(bot, message, downloadRequest)
+		handleDownloadRequest(bot, logger, message, downloadRequest)
 	}()
 }
 
 // RunTelegramBot starts receiving Telegram updates and handles each incoming
 // message using the provided authorization list and download concurrency limit.
-func RunTelegramBot(bot *tgbotapi.BotAPI, authorizedUsers []int64, downloadSlots chan struct{}) {
+func RunTelegramBot(bot *tgbotapi.BotAPI, logger *slog.Logger, authorizedUsers []int64, downloadSlots chan struct{}) {
 	// Start the infinite loop to receive messages
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 	updates := bot.GetUpdatesChan(u)
 	for update := range updates {
-		handleMessage(bot, update.Message, authorizedUsers, downloadSlots)
+		handleMessage(bot, logger, update.Message, authorizedUsers, downloadSlots)
 	}
 }
