@@ -27,22 +27,23 @@ func main() {
 	// Check system has required dependencies
 	err := CheckSystemHasRequiredDependencies()
 	if err != nil {
-		log.Fatalf("Unable to start since system has missing dependencies: %s", err)
+		log.Fatalf("Startup failed while checking dependencies: %s", err)
 	}
 
 	// Parse the flags
 	config, err := ParseConfig(os.Args[1:])
 	if err != nil {
-		log.Fatalf("Configuration error: %s", err)
+		log.Fatalf("Startup failed: invalid configuration: %s", err)
 	}
 
 	// Bootstrap the bot
 	bot, err := tgbotapi.NewBotAPI(config.TelegramBotToken)
 	if err != nil {
-		log.Fatalf("Unable to start since can not create Telegram bot: %s", err)
+		log.Fatalf("Startup failed: unable to create Telegram bot: %s", err)
 	}
-	log.Printf("Authorized on account %s", bot.Self.UserName)
+	log.Printf("Telegram bot started as @%s", bot.Self.UserName)
 	// Set up a semaphore for limiting the downloads
 	downloadSlots := make(chan struct{}, 5)
+	log.Printf("Starting Telegram update loop with %d download slots", cap(downloadSlots))
 	RunTelegramBot(bot, config.AuthorizedUsers, downloadSlots)
 }
