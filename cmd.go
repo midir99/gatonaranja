@@ -14,13 +14,9 @@ type Config struct {
 	TelegramBotToken string
 }
 
+// validateAuthorizedUsers parses a comma-separated list of Telegram user IDs
+// and returns them as int64 values.
 func validateAuthorizedUsers(authorizedUsers string) ([]int64, error) {
-	// Process the authorized-users value
-	authorizedUsers = strings.TrimSpace(authorizedUsers)
-	if authorizedUsers == "" {
-		authorizedUsers = os.Getenv("AUTHORIZED_USERS")
-		authorizedUsers = strings.TrimSpace(authorizedUsers)
-	}
 	authorizedUsersIntArray := []int64{}
 	if authorizedUsers != "" {
 		authorizedUsersArray := strings.Split(authorizedUsers, ",")
@@ -35,21 +31,25 @@ func validateAuthorizedUsers(authorizedUsers string) ([]int64, error) {
 	return authorizedUsersIntArray, nil
 }
 
+// validateTelegramBotToken validates that the Telegram bot token is not empty.
 func validateTelegramBotToken(telegramBotToken string) (string, error) {
 	// Process the telegram-bot-token value
-	telegramBotToken = strings.TrimSpace(telegramBotToken)
 	if telegramBotToken == "" {
-		telegramBotToken = os.Getenv("TELEGRAM_BOT_TOKEN")
-		telegramBotToken = strings.TrimSpace(telegramBotToken)
-		if telegramBotToken == "" {
-			return "", fmt.Errorf("telegram bot token is required: use -telegram-bot-token or TELEGRAM_BOT_TOKEN")
-		}
+		return "", fmt.Errorf("telegram bot token is required: use -telegram-bot-token or TELEGRAM_BOT_TOKEN")
 	}
 	return telegramBotToken, nil
 }
 
-func fallbackToEnv(variable string, envVariableName string) string {
-
+// flagOrEnv returns the trimmed flag value when it is not empty; otherwise it
+// returns the trimmed value of the given environment variable.
+func flagOrEnv(variableValue, variableEnvName string) string {
+	variableValue = strings.TrimSpace(variableValue)
+	if variableValue != "" {
+		return variableValue
+	}
+	variableValue = os.Getenv(variableEnvName)
+	variableValue = strings.TrimSpace(variableValue)
+	return variableValue
 }
 
 // ParseConfig parses command-line flags, falls back to environment variables
@@ -79,10 +79,12 @@ func ParseConfig(args []string) (Config, error) {
 		return Config{}, err
 	}
 
+	authorizedUsers = flagOrEnv(authorizedUsers, "AUTHORIZED_USERS")
 	authorizedUsersArray, err := validateAuthorizedUsers(authorizedUsers)
 	if err != nil {
 		return Config{}, err
 	}
+	telegramBotToken = flagOrEnv(telegramBotToken, "TELEGRAM_BOT_TOKEN")
 	telegramBotToken, err = validateTelegramBotToken(telegramBotToken)
 	if err != nil {
 		return Config{}, err

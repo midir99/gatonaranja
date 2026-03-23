@@ -17,6 +17,30 @@ type DownloadRequest struct {
 	videoURL    string
 }
 
+// validateYouTubeURL parses rawURL and reports whether it is a valid YouTube
+// URL using the http or https scheme.
+func validateYouTubeURL(rawURL string) (string, error) {
+	parsedURL, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return "", fmt.Errorf("invalid URL %q", rawURL)
+	}
+
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return "", fmt.Errorf("invalid URL %q: scheme must be http or https", rawURL)
+	}
+
+	host := strings.ToLower(parsedURL.Host)
+	switch host {
+	case "youtube.com", "www.youtube.com", "music.youtube.com":
+		return parsedURL.String(), nil
+	default:
+		return "", fmt.Errorf(
+			"invalid YouTube URL %q: host must be youtube.com, www.youtube.com, or music.youtube.com",
+			rawURL,
+		)
+	}
+}
+
 // ParseDownloadRequest parses a download request string in the form URL,
 // URL audio, URL TIMESTAMP_RANGE, or URL TIMESTAMP_RANGE audio, and returns
 // the corresponding DownloadRequest.
@@ -47,11 +71,11 @@ details: %w`
 
 	downloadRequest := DownloadRequest{}
 
-	videoURL, err := url.Parse(args[0])
+	videoURL, err := validateYouTubeURL(args[0])
 	if err != nil {
 		return DownloadRequest{}, fmt.Errorf(invalidDownloadRequestErrTemplate, downloadRequestString, err)
 	}
-	downloadRequest.videoURL = videoURL.String()
+	downloadRequest.videoURL = videoURL
 
 	switch {
 	case argsNumber == 1:

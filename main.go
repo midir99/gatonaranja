@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -30,7 +31,7 @@ func main() {
 	}
 
 	// Parse the flags
-	config, err := ParseConfig()
+	config, err := ParseConfig(os.Args[1:])
 	if err != nil {
 		log.Fatalf("Configuration error: %s", err)
 	}
