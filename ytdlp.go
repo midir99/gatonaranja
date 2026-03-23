@@ -34,11 +34,11 @@ func validateYouTubeURL(rawURL string) (string, error) {
 
 	host := strings.ToLower(parsedURL.Host)
 	switch host {
-	case "youtube.com", "www.youtube.com", "music.youtube.com":
+	case "youtube.com", "www.youtube.com", "music.youtube.com", "youtu.be", "m.youtube.com":
 		return parsedURL.String(), nil
 	default:
 		return "", fmt.Errorf(
-			"invalid YouTube URL %q: host must be youtube.com, www.youtube.com, or music.youtube.com",
+			"invalid YouTube URL %q: host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com",
 			rawURL,
 		)
 	}

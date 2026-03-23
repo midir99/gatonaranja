@@ -9,7 +9,9 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func CheckSystemHasRequiredDependencies() error {
+// ValidateRequiredDependencies verifies that the external commands
+// required by the bot are available in the system PATH.
+func ValidateRequiredDependencies() error {
 	dependencies := []string{
 		"ffmpeg",
 		"yt-dlp",
@@ -23,15 +25,21 @@ func CheckSystemHasRequiredDependencies() error {
 	return nil
 }
 
-func main() {
-	var logger = slog.New(
+// newLogger creates the application logger used by the bot.
+func newLogger() *slog.Logger {
+	return slog.New(
 		slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 			Level: slog.LevelInfo,
 		}),
 	)
+}
+
+// main initializes the bot and starts the Telegram update loop.
+func main() {
+	var logger = newLogger()
 
 	// Check system has required dependencies
-	err := CheckSystemHasRequiredDependencies()
+	err := ValidateRequiredDependencies()
 	if err != nil {
 		logger.Error("Startup failed while checking dependencies", "error", err)
 		os.Exit(1)
