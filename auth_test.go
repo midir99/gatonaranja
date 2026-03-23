@@ -7,8 +7,8 @@ func TestUserIsAuthorized(t *testing.T) {
 		// If authorizedUserIDs is an empty list, everyone is authorized
 		authorizedUserIDs := []int64{}
 		var userID int64 = 22
-		got := UserIsAuthorized(userID, authorizedUserIDs)
 		want := true
+		got := UserIsAuthorized(userID, authorizedUserIDs)
 		if got != want {
 			t.Fatalf("got %v, want %v", got, want)
 		}
@@ -18,8 +18,8 @@ func TestUserIsAuthorized(t *testing.T) {
 		// If authorizedUserIDs is not empty, only the ids in the list are authorized
 		authorizedUserIDs := []int64{1, 2, 3, 4, 5}
 		var userID int64 = 2
-		got := UserIsAuthorized(userID, authorizedUserIDs)
 		want := true
+		got := UserIsAuthorized(userID, authorizedUserIDs)
 		if got != want {
 			t.Fatalf("got %v, want %v", got, want)
 		}
@@ -29,8 +29,8 @@ func TestUserIsAuthorized(t *testing.T) {
 		// If authorizedUserIDs is not empty, only the ids in the list are authorized
 		authorizedUserIDs := []int64{1, 2, 3, 4, 5}
 		var userID int64 = 22
-		got := UserIsAuthorized(userID, authorizedUserIDs)
 		want := false
+		got := UserIsAuthorized(userID, authorizedUserIDs)
 		if got != want {
 			t.Fatalf("got %v, want %v", got, want)
 		}

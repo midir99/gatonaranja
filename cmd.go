@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -22,11 +23,14 @@ func validateAuthorizedUsers(authorizedUsers string) ([]int64, error) {
 	if authorizedUsers != "" {
 		authorizedUsersArray := strings.SplitSeq(authorizedUsers, ",")
 		for userID := range authorizedUsersArray {
-			userIDInt, err := strconv.ParseInt(strings.TrimSpace(userID), 10, 0)
+			userID = strings.TrimSpace(userID)
+			userIDInt, err := strconv.ParseInt(userID, 10, 0)
 			if err != nil {
 				return nil, fmt.Errorf("invalid authorized user ID %q: must be a valid Telegram user ID", userID)
 			}
-			authorizedUsersIntArray = append(authorizedUsersIntArray, userIDInt)
+			if !slices.Contains(authorizedUsersIntArray, userIDInt) {
+				authorizedUsersIntArray = append(authorizedUsersIntArray, userIDInt)
+			}
 		}
 	}
 	return authorizedUsersIntArray, nil

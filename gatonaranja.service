@@ -1,11 +1,12 @@
 [Unit]
-Description=gatonaranja service
-After=multi-user.target
+Description=gatonaranja Telegram bot
 
 [Service]
 Type=simple
-Restart=always
-ExecStart=TOKEN=YOUR-TOKEN-HERE AUTHORIZED_USERS=YOUR-AUTHORIZED-USERS-HERE LOGFILE=/var/log/gatonaranja/gatonaranja.log gatonaranja
+EnvironmentFile=%h/.config/gatonaranja/gatonaranja.env
+ExecStart=%h/.local/bin/gatonaranja
+Restart=on-failure
+RestartSec=5
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
