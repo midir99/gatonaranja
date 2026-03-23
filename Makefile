@@ -1,4 +1,4 @@
-.PHONY: help clean fmt test coverage coverage-html dep vet lint
+.PHONY: help build clean fmt test coverage coverage-html dep vet lint
 
 .DEFAULT_GOAL := help
 
