@@ -8,41 +8,46 @@ help:
 	@sed -n 's/^##//p' $(MAKEFILE_LIST) | column -t -s ':' |  sed -e 's/^/ /'
 
 
-## clean: removes object files from source directories
+## build: build the gatonaranja binary
+build:
+	go build -o gatonaranja
+
+
+## clean: remove Go build artifacts
 clean:
 	go clean
 
 
-## fmt: formats the code using golangci-lint
+## fmt: format the code using golangci-lint
 fmt:
 	golangci-lint fmt
 
 
-## test: runs the tests
+## test: run the tests
 test:
 	go test ./...
 
 
-## coverage: runs the tests and reports the test coverage
+## coverage: run the tests and generate a coverage report
 coverage:
 	go test ./... -coverprofile=coverage.out
 
 
-## coverage-html: runs the tests and reports the test coverage in html format
+## coverage-html: generate an HTML coverage report
 coverage-html: coverage
 	go tool cover -html=coverage.out
 
 
-## dep: downloads the dependencies
+## dep: download Go module dependencies
 dep:
 	go mod download
 
 
-## vet: runs the command go vet
+## vet: run go vet
 vet:
 	go vet ./...
 
 
-## lint: lints the code using golangci-lint
+## lint: lint the code using golangci-lint
 lint:
 	golangci-lint run
