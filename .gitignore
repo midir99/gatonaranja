@@ -23,3 +23,6 @@ go.work
 
 # Visual Studio Code
 .vscode/
+
+# Test coverage
+coverage.html

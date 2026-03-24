@@ -35,7 +35,7 @@ coverage:
 
 ## coverage-html: generate an HTML coverage report
 coverage-html: coverage
-	go tool cover -html=coverage.out
+	go tool cover -html=coverage.out -o coverage.html
 
 
 ## dep: download Go module dependencies
