@@ -145,6 +145,33 @@ func SecondsToTimestamp(second int) string {
 	return fmt.Sprintf("%02d:%02d", minutes, seconds)
 }
 
+// parseTimestampRangeParts parses the start and end parts of a timestamp range,
+// returns their values in seconds, and validates that the start time is before
+// the end time.
+func parseTimestampRangeParts(parts []string) (int, int, error) {
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("invalid timestamp range %v", parts)
+	}
+
+	startSecond, err := TimestampToSeconds(parts[0])
+	if err != nil {
+		return 0, 0, err
+	}
+
+	endSecond, err := TimestampToSeconds(parts[1])
+	if err != nil {
+		return 0, 0, err
+	}
+
+	// Skip the start >= end validation when endSecond is EndSecond, since
+	// the actual end of the video is not known yet and will be resolved later.
+	if endSecond != EndSecond && startSecond >= endSecond {
+		return 0, 0, errors.New("start timestamp must be before end timestamp")
+	}
+
+	return startSecond, endSecond, nil
+}
+
 // TimestampRangeToSeconds parses a timestamp range whose start is either
 // the keyword start or a timestamp in MM:SS or HH:MM:SS format, and whose
 // end is either the keyword end or a timestamp in MM:SS or HH:MM:SS format.
@@ -155,21 +182,5 @@ func TimestampRangeToSeconds(timestampRange string) (int, int, error) {
 		return 0, 0, fmt.Errorf("invalid timestamp range %s", timestampRange)
 	}
 	parts := strings.Split(timestampRange, "-")
-	if len(parts) != 2 {
-		return 0, 0, fmt.Errorf("invalid timestamp range %s", timestampRange)
-	}
-	startSecond, err := TimestampToSeconds(parts[0])
-	if err != nil {
-		return 0, 0, err
-	}
-	endSecond, err := TimestampToSeconds(parts[1])
-	if err != nil {
-		return 0, 0, err
-	}
-	// Skip the start >= end validation when endSecond is EndSecond, since
-	// the actual end of the video is not known yet and will be resolved later.
-	if endSecond != EndSecond && startSecond >= endSecond {
-		return 0, 0, errors.New("start timestamp must be before end timestamp")
-	}
-	return startSecond, endSecond, nil
+	return parseTimestampRangeParts(parts)
 }
