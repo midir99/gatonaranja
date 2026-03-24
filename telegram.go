@@ -59,9 +59,9 @@ func handleDownloadRequest(
 	bot *tgbotapi.BotAPI,
 	logger *slog.Logger,
 	message *tgbotapi.Message,
-	downloadRequest DownloadRequest,
+	mediaDownloader MediaDownloader,
 ) {
-	mediaFilename, err := downloadRequest.Download()
+	mediaFilename, err := mediaDownloader.Download()
 	if err != nil {
 		logger.Error(
 			"Failed to download request",
@@ -75,11 +75,12 @@ func handleDownloadRequest(
 	}
 
 	var mediaMsg tgbotapi.Chattable
-	if downloadRequest.audioOnly {
+	switch mediaDownloader.MediaKind() {
+	case MediaAudio:
 		audioMsg := tgbotapi.NewAudio(message.Chat.ID, tgbotapi.FilePath(mediaFilename))
 		audioMsg.ReplyToMessageID = message.MessageID
 		mediaMsg = audioMsg
-	} else {
+	case MediaVideo:
 		videoMsg := tgbotapi.NewVideo(message.Chat.ID, tgbotapi.FilePath(mediaFilename))
 		videoMsg.ReplyToMessageID = message.MessageID
 		mediaMsg = videoMsg

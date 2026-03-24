@@ -11,13 +11,28 @@ import (
 	"time"
 )
 
-// DownloadRequest describes the URL, timestamp range, and audio-only option
+// MediaKind identifies the type of media to download.
+type MediaKind int
+
+const (
+	MediaAudio MediaKind = iota
+	MediaVideo
+)
+
+// MediaDownloader describes a media download request that can download itself
+// and report the kind of media it produces.
+type MediaDownloader interface {
+	Download() (string, error)
+	MediaKind() MediaKind
+}
+
+// DownloadRequest describes the source URL, timestamp range, and media kind
 // for a media download request.
 type DownloadRequest struct {
 	startSecond int
 	endSecond   int
-	audioOnly   bool
-	videoURL    string
+	mediaKind   MediaKind
+	sourceURL   string
 }
 
 // validateYouTubeURL parses rawURL and reports whether it is a valid YouTube
@@ -63,13 +78,15 @@ func ParseDownloadRequest(downloadRequestString string) (DownloadRequest, error)
 		return DownloadRequest{}, invalidDownloadRequestErr
 	}
 
-	downloadRequest := DownloadRequest{}
+	downloadRequest := DownloadRequest{
+		mediaKind: MediaVideo,
+	}
 
 	videoURL, err := validateYouTubeURL(args[0])
 	if err != nil {
 		return DownloadRequest{}, fmt.Errorf(invalidDownloadRequestErrTemplate, downloadRequestString, err)
 	}
-	downloadRequest.videoURL = videoURL
+	downloadRequest.sourceURL = videoURL
 
 	switch argsNumber {
 	case 1:
@@ -83,7 +100,7 @@ func ParseDownloadRequest(downloadRequestString string) (DownloadRequest, error)
 		// Example: https://www.youtube.com/watch?v=J---aiyznGQ start-0:10
 		// Example: https://www.youtube.com/watch?v=J---aiyznGQ audio
 		if strings.ToLower(args[1]) == "audio" {
-			downloadRequest.audioOnly = true
+			downloadRequest.mediaKind = MediaAudio
 			return downloadRequest, nil
 		}
 		startSecond, endSecond, err2 := TimestampRangeToSeconds(args[1])
@@ -103,7 +120,7 @@ func ParseDownloadRequest(downloadRequestString string) (DownloadRequest, error)
 		downloadRequest.startSecond = startSecond
 		downloadRequest.endSecond = endSecond
 		if strings.ToLower(args[2]) == "audio" {
-			downloadRequest.audioOnly = true
+			downloadRequest.mediaKind = MediaAudio
 			return downloadRequest, nil
 		}
 		return DownloadRequest{}, invalidDownloadRequestErr
@@ -112,10 +129,10 @@ func ParseDownloadRequest(downloadRequestString string) (DownloadRequest, error)
 	}
 }
 
-// SecondsToYTDLDownloadSections converts start and end values expressed in seconds
+// SecondsToDownloadSections converts start and end values expressed in seconds
 // into a yt-dlp --download-sections time range in the form *START-END.
 // When endSecond is EndSecond, the returned range uses inf as the end value.
-func SecondsToYTDLDownloadSections(startSecond, endSecond int) (string, error) {
+func SecondsToDownloadSections(startSecond, endSecond int) (string, error) {
 	switch {
 	case startSecond < 0 && startSecond != StartSecond:
 		return "", fmt.Errorf("invalid start second %d", startSecond)
@@ -134,21 +151,26 @@ func SecondsToYTDLDownloadSections(startSecond, endSecond int) (string, error) {
 	return "*" + start + "-" + end, nil
 }
 
-// BuildYTDLPCommand builds the yt-dlp command for the download request,
+// MediaKind reports the kind of media produced by the download request.
+func (dr DownloadRequest) MediaKind() MediaKind {
+	return dr.mediaKind
+}
+
+// BuildCommand builds the yt-dlp command for the download request,
 // including optional section download and audio extraction flags, and
 // returns it as a slice of arguments ready to be passed to "[exec.Command]".
-func (dr DownloadRequest) BuildYTDLPCommand() ([]string, error) {
+func (dr DownloadRequest) BuildCommand() ([]string, error) {
 	cmd := []string{"yt-dlp", "--no-simulate", "--print", "after_move:filepath"}
 
 	if dr.startSecond != StartSecond || dr.endSecond != EndSecond {
-		downloadSections, err := SecondsToYTDLDownloadSections(dr.startSecond, dr.endSecond)
+		downloadSections, err := SecondsToDownloadSections(dr.startSecond, dr.endSecond)
 		if err != nil {
 			return nil, err
 		}
 		cmd = append(cmd, "--download-sections", downloadSections)
 	}
 
-	if dr.audioOnly {
+	if dr.MediaKind() == MediaAudio {
 		cmd = append(cmd, "--extract-audio", "--audio-format", "mp3")
 	}
 	// Use a Telegram-friendly fallback format selection strategy:
@@ -164,7 +186,7 @@ func (dr DownloadRequest) BuildYTDLPCommand() ([]string, error) {
 		"+size,+br,+res,+fps",
 		"--output",
 		"%(title)s.%(ext)s",
-		dr.videoURL,
+		dr.sourceURL,
 	)
 	return cmd, nil
 }
@@ -172,7 +194,7 @@ func (dr DownloadRequest) BuildYTDLPCommand() ([]string, error) {
 // Download executes the yt-dlp command for the download request and returns
 // the final output filepath reported by yt-dlp.
 func (dr DownloadRequest) Download() (string, error) {
-	cmdArgs, err := dr.BuildYTDLPCommand()
+	cmdArgs, err := dr.BuildCommand()
 	if err != nil {
 		return "", err
 	}
