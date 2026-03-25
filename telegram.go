@@ -27,6 +27,10 @@ You can also use start or end:
 https://www.youtube.com/watch?v=AqjB8DGt85U start-0:10
 https://www.youtube.com/watch?v=AqjB8DGt85U 0:10-end`
 
+type MessageSender interface {
+	Send(c tgbotapi.Chattable) (tgbotapi.Message, error)
+}
+
 // logTelegramSendError logs a Telegram send failure for the given user.
 func logTelegramSendError(logger *slog.Logger, userName string, userID int64, err error) {
 	logger.Error(
@@ -40,7 +44,7 @@ func logTelegramSendError(logger *slog.Logger, userName string, userID int64, er
 // sendReply sends a text reply to the given Telegram message and logs any
 // error returned by the Telegram API.
 func sendReply(
-	bot *tgbotapi.BotAPI,
+	bot MessageSender,
 	logger *slog.Logger,
 	message *tgbotapi.Message,
 	text string,
@@ -56,7 +60,7 @@ func sendReply(
 // handleDownloadRequest executes the download request and replies to the
 // original Telegram message with the downloaded media or an error message.
 func handleDownloadRequest(
-	bot *tgbotapi.BotAPI,
+	bot MessageSender,
 	logger *slog.Logger,
 	message *tgbotapi.Message,
 	mediaDownloader MediaDownloader,
@@ -119,7 +123,7 @@ func handleDownloadRequest(
 // authorization, parses the download request, sends an acknowledgement,
 // and dispatches the download work asynchronously.
 func handleMessage(
-	bot *tgbotapi.BotAPI,
+	bot MessageSender,
 	logger *slog.Logger,
 	message *tgbotapi.Message,
 	authorizedUsers []int64,
