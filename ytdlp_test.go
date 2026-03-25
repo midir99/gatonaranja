@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"os/exec"
 	"testing"
 )
 
@@ -70,7 +73,9 @@ func TestValidateYouTubeURL(t *testing.T) {
 			"invalid host",
 			"https://vimeo.com/123456",
 			"",
-			errors.New(`invalid YouTube URL "https://vimeo.com/123456": host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com`),
+			errors.New(
+				`invalid YouTube URL "https://vimeo.com/123456": host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com`,
+			),
 		},
 		{
 			"malformed url",
@@ -88,7 +93,9 @@ func TestValidateYouTubeURL(t *testing.T) {
 			"subdomain not allowed",
 			"https://gaming.youtube.com/watch?v=dQw4w9WgXcQ",
 			"",
-			errors.New(`invalid YouTube URL "https://gaming.youtube.com/watch?v=dQw4w9WgXcQ": host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com`),
+			errors.New(
+				`invalid YouTube URL "https://gaming.youtube.com/watch?v=dQw4w9WgXcQ": host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com`,
+			),
 		},
 	}
 	for _, tc := range testCases {
@@ -161,13 +168,49 @@ func TestParseDownloadRequest(t *testing.T) {
 			"empty download request",
 			"",
 			DownloadRequest{},
-			errors.New(`invalid download request "": download request does not follow the format; expected URL [TIMESTAMP_RANGE] [audio]`),
+			errors.New(
+				`invalid download request "": download request does not follow the format; expected URL [TIMESTAMP_RANGE] [audio]`,
+			),
 		},
 		{
 			"invalid YouTube URL",
 			"https://gaming.youtube.com/watch?v=dQw4w9WgXcQ",
 			DownloadRequest{},
-			errors.New(`invalid download request "https://gaming.youtube.com/watch?v=dQw4w9WgXcQ": invalid YouTube URL "https://gaming.youtube.com/watch?v=dQw4w9WgXcQ": host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com; expected URL [TIMESTAMP_RANGE] [audio]`),
+			errors.New(
+				`invalid download request "https://gaming.youtube.com/watch?v=dQw4w9WgXcQ": invalid YouTube URL "https://gaming.youtube.com/watch?v=dQw4w9WgXcQ": host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com; expected URL [TIMESTAMP_RANGE] [audio]`,
+			),
+		},
+		{
+			"invalid timestamp",
+			"https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp",
+			DownloadRequest{},
+			errors.New(
+				`invalid download request "https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp": invalid timestamp range invalidtimestamp; expected URL [TIMESTAMP_RANGE] [audio]`,
+			),
+		},
+		{
+			"invalid timestamp 2",
+			"https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp audio",
+			DownloadRequest{},
+			errors.New(
+				`invalid download request "https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp audio": invalid timestamp range invalidtimestamp; expected URL [TIMESTAMP_RANGE] [audio]`,
+			),
+		},
+		{
+			"invalid audio",
+			"https://www.youtube.com/watch?v=8v_kBIIGViY 2:45-2:53 invalidaudio",
+			DownloadRequest{},
+			errors.New(
+				`invalid download request "https://www.youtube.com/watch?v=8v_kBIIGViY 2:45-2:53 invalidaudio": download request does not follow the format; expected URL [TIMESTAMP_RANGE] [audio]`,
+			),
+		},
+		{
+			"invalid download request",
+			"https://www.youtube.com/watch?v=8v_kBIIGViY 2:45-2:53 audio anotherinvalidparameter",
+			DownloadRequest{},
+			errors.New(
+				`invalid download request "https://www.youtube.com/watch?v=8v_kBIIGViY 2:45-2:53 audio anotherinvalidparameter": download request does not follow the format; expected URL [TIMESTAMP_RANGE] [audio]`,
+			),
 		},
 	}
 	for _, tc := range testCases {
@@ -195,14 +238,628 @@ func TestParseDownloadRequest(t *testing.T) {
 	}
 }
 func TestSecondsToDownloadSections(t *testing.T) {
-
+	testCases := []struct {
+		testName             string
+		startSecond          int
+		endSecond            int
+		wantDownloadSections string
+		err                  error
+	}{
+		{
+			"seconds range",
+			0,
+			5,
+			"*00:00-00:05",
+			nil,
+		},
+		{
+			"minutes range",
+			10,
+			75,
+			"*00:10-01:15",
+			nil,
+		},
+		{
+			"hours included",
+			3600,
+			3665,
+			"*01:00:00-01:01:05",
+			nil,
+		},
+		{
+			"start zero to one hour",
+			0,
+			3600,
+			"*00:00-01:00:00",
+			nil,
+		},
+		{
+			"same start and end (invalid)",
+			10,
+			10,
+			"",
+			errors.New("start second must be lower than end second"),
+		},
+		{
+			"start greater than end (invalid)",
+			20,
+			10,
+			"",
+			errors.New("start second must be lower than end second"),
+		},
+		{
+			"negative start (invalid)",
+			-5,
+			10,
+			"",
+			fmt.Errorf("invalid start second %d", -5),
+		},
+		{
+			"negative end (invalid)",
+			5,
+			-10,
+			"",
+			fmt.Errorf("invalid end second %d", -10),
+		},
+		{
+			"end is infinity",
+			5,
+			EndSecond,
+			"*00:05-inf",
+			nil,
+		},
+		{
+			"start is sentinel StartSecond",
+			StartSecond,
+			10,
+			"*" + SecondsToTimestamp(StartSecond) + "-00:10",
+			nil,
+		},
+		{
+			"both sentinels",
+			StartSecond,
+			EndSecond,
+			"*" + SecondsToTimestamp(StartSecond) + "-inf",
+			nil,
+		},
+		{
+			"large values",
+			7325,
+			10800,
+			"*02:02:05-03:00:00",
+			nil,
+		},
+		{
+			"start zero end infinity",
+			0,
+			EndSecond,
+			"*00:00-inf",
+			nil,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			got, err := SecondsToDownloadSections(tc.startSecond, tc.endSecond)
+			if tc.err != nil && err == nil {
+				t.Fatalf("got nil, want %q", tc.err.Error())
+			}
+			if tc.err != nil && err != nil && tc.err.Error() != err.Error() {
+				t.Fatalf("got %q, want %q", err.Error(), tc.err.Error())
+			}
+			if got != tc.wantDownloadSections {
+				t.Fatalf("got %q, want %q", got, tc.wantDownloadSections)
+			}
+		})
+	}
 }
-func TestMediaKind(t *testing.T) {
-
+func TestDownloadRequestMediaKind(t *testing.T) {
+	testCases := []struct {
+		testName        string
+		downloadRequest DownloadRequest
+		wantMediaKind   MediaKind
+	}{
+		{
+			"media video",
+			DownloadRequest{mediaKind: MediaVideo},
+			MediaVideo,
+		},
+		{
+			"media audio",
+			DownloadRequest{mediaKind: MediaAudio},
+			MediaAudio,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			got := tc.downloadRequest.MediaKind()
+			if got != tc.wantMediaKind {
+				t.Fatalf("got %d, want %d", got, tc.wantMediaKind)
+			}
+		})
+	}
 }
-func TestBuildCommand(t *testing.T) {
 
+func compareStringArray(t *testing.T, got, want []string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
 }
-func TestDownload(t *testing.T) {
 
+func TestDownloadRequestBuildCommand(t *testing.T) {
+	testCases := []struct {
+		testName        string
+		downloadRequest DownloadRequest
+		wantCommand     []string
+		err             error
+	}{
+		{
+			"test 1",
+			DownloadRequest{
+				startSecond: StartSecond,
+				endSecond:   EndSecond,
+				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
+				mediaKind:   MediaVideo,
+			},
+			[]string{
+				"yt-dlp",
+				"--no-simulate",
+				"--print", "after_move:filepath",
+				"--format", "18/best[ext=mp4]/best",
+				"--format-sort", "+size,+br,+res,+fps",
+				"--output", "%(title)s.%(ext)s",
+				"https://www.youtube.com/watch?v=8v_kBIIGViY",
+			},
+			nil,
+		},
+		{
+			"test 2",
+			DownloadRequest{
+				startSecond: StartSecond,
+				endSecond:   5,
+				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
+				mediaKind:   MediaVideo,
+			},
+			[]string{
+				"yt-dlp",
+				"--no-simulate",
+				"--print", "after_move:filepath",
+				"--download-sections", "*00:00-00:05",
+				"--format", "18/best[ext=mp4]/best",
+				"--format-sort", "+size,+br,+res,+fps",
+				"--output", "%(title)s.%(ext)s",
+				"https://www.youtube.com/watch?v=8v_kBIIGViY",
+			},
+			nil,
+		},
+		{
+			"test 3",
+			DownloadRequest{
+				startSecond: StartSecond,
+				endSecond:   5,
+				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
+				mediaKind:   MediaAudio,
+			},
+			[]string{
+				"yt-dlp",
+				"--no-simulate",
+				"--print", "after_move:filepath",
+				"--download-sections", "*00:00-00:05",
+				"--extract-audio",
+				"--audio-format", "mp3",
+				"--format", "18/best[ext=mp4]/best",
+				"--format-sort", "+size,+br,+res,+fps",
+				"--output", "%(title)s.%(ext)s",
+				"https://www.youtube.com/watch?v=8v_kBIIGViY",
+			},
+			nil,
+		},
+		{
+			"invalid seconds",
+			DownloadRequest{
+				startSecond: 20,
+				endSecond:   10,
+				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
+				mediaKind:   MediaVideo,
+			},
+			nil,
+			errors.New("start second must be lower than end second"),
+		},
+		{
+			"explicit range without sentinel start",
+			DownloadRequest{
+				startSecond: 10,
+				endSecond:   20,
+				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
+				mediaKind:   MediaVideo,
+			},
+			[]string{
+				"yt-dlp",
+				"--no-simulate",
+				"--print", "after_move:filepath",
+				"--download-sections", "*00:10-00:20",
+				"--format", "18/best[ext=mp4]/best",
+				"--format-sort", "+size,+br,+res,+fps",
+				"--output", "%(title)s.%(ext)s",
+				"https://www.youtube.com/watch?v=8v_kBIIGViY",
+			},
+			nil,
+		},
+		{
+			"hours range",
+			DownloadRequest{
+				startSecond: 3600,
+				endSecond:   3665,
+				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
+				mediaKind:   MediaVideo,
+			},
+			[]string{
+				"yt-dlp",
+				"--no-simulate",
+				"--print", "after_move:filepath",
+				"--download-sections", "*01:00:00-01:01:05",
+				"--format", "18/best[ext=mp4]/best",
+				"--format-sort", "+size,+br,+res,+fps",
+				"--output", "%(title)s.%(ext)s",
+				"https://www.youtube.com/watch?v=8v_kBIIGViY",
+			},
+			nil,
+		},
+		{
+			"start zero end infinity",
+			DownloadRequest{
+				startSecond: 0,
+				endSecond:   EndSecond,
+				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
+				mediaKind:   MediaVideo,
+			},
+			[]string{
+				"yt-dlp",
+				"--no-simulate",
+				"--print", "after_move:filepath",
+				"--format", "18/best[ext=mp4]/best",
+				"--format-sort", "+size,+br,+res,+fps",
+				"--output", "%(title)s.%(ext)s",
+				"https://www.youtube.com/watch?v=8v_kBIIGViY",
+			},
+			nil,
+		},
+		{
+			"audio without sections",
+			DownloadRequest{
+				startSecond: StartSecond,
+				endSecond:   EndSecond,
+				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
+				mediaKind:   MediaAudio,
+			},
+			[]string{
+				"yt-dlp",
+				"--no-simulate",
+				"--print", "after_move:filepath",
+				"--extract-audio",
+				"--audio-format", "mp3",
+				"--format", "18/best[ext=mp4]/best",
+				"--format-sort", "+size,+br,+res,+fps",
+				"--output", "%(title)s.%(ext)s",
+				"https://www.youtube.com/watch?v=8v_kBIIGViY",
+			},
+			nil,
+		},
+		{
+			"audio with infinity end",
+			DownloadRequest{
+				startSecond: 30,
+				endSecond:   EndSecond,
+				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
+				mediaKind:   MediaAudio,
+			},
+			[]string{
+				"yt-dlp",
+				"--no-simulate",
+				"--print", "after_move:filepath",
+				"--download-sections", "*00:30-inf",
+				"--extract-audio",
+				"--audio-format", "mp3",
+				"--format", "18/best[ext=mp4]/best",
+				"--format-sort", "+size,+br,+res,+fps",
+				"--output", "%(title)s.%(ext)s",
+				"https://www.youtube.com/watch?v=8v_kBIIGViY",
+			},
+			nil,
+		},
+		{
+			"negative start",
+			DownloadRequest{
+				startSecond: -5,
+				endSecond:   10,
+				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
+				mediaKind:   MediaVideo,
+			},
+			nil,
+			fmt.Errorf("invalid start second %d", -5),
+		},
+		{
+			"negative end",
+			DownloadRequest{
+				startSecond: 5,
+				endSecond:   -10,
+				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
+				mediaKind:   MediaVideo,
+			},
+			nil,
+			fmt.Errorf("invalid end second %d", -10),
+		},
+		{
+			"equal start and end",
+			DownloadRequest{
+				startSecond: 10,
+				endSecond:   10,
+				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
+				mediaKind:   MediaVideo,
+			},
+			nil,
+			errors.New("start second must be lower than end second"),
+		},
+		{
+			"no sections when both sentinels",
+			DownloadRequest{
+				startSecond: StartSecond,
+				endSecond:   EndSecond,
+				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
+				mediaKind:   MediaAudio,
+			},
+			[]string{
+				"yt-dlp",
+				"--no-simulate",
+				"--print", "after_move:filepath",
+				"--extract-audio",
+				"--audio-format", "mp3",
+				"--format", "18/best[ext=mp4]/best",
+				"--format-sort", "+size,+br,+res,+fps",
+				"--output", "%(title)s.%(ext)s",
+				"https://www.youtube.com/watch?v=8v_kBIIGViY",
+			},
+			nil,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			got, err := tc.downloadRequest.BuildCommand()
+			if tc.err != nil && err == nil {
+				t.Fatalf("got nil, want %q", tc.err.Error())
+			}
+			if tc.err != nil && err != nil && tc.err.Error() != err.Error() {
+				t.Fatalf("got %q, want %q", err.Error(), tc.err.Error())
+			}
+			compareStringArray(t, got, tc.wantCommand)
+		})
+	}
+}
+
+func TestCommandContext(t *testing.T) {
+	t.Run("basic command with args", func(t *testing.T) {
+		ctx := context.TODO()
+		name := "echo"
+		args := []string{"hello", "world"}
+
+		cmd := commandContext(ctx, name, args...)
+
+		want := append([]string{name}, args...)
+		compareStringArray(t, cmd.Args, want)
+	})
+
+	t.Run("no args", func(t *testing.T) {
+		ctx := context.TODO()
+		name := "echo"
+
+		cmd := commandContext(ctx, name)
+
+		want := []string{name}
+		compareStringArray(t, cmd.Args, want)
+	})
+
+	t.Run("empty args slice", func(t *testing.T) {
+		ctx := context.TODO()
+		name := "echo"
+		var args []string
+
+		cmd := commandContext(ctx, name, args...)
+
+		want := []string{name}
+		compareStringArray(t, cmd.Args, want)
+	})
+
+	t.Run("preserves argument order", func(t *testing.T) {
+		ctx := context.TODO()
+		name := "cmd"
+		args := []string{"a", "b", "c"}
+
+		cmd := commandContext(ctx, name, args...)
+
+		want := []string{"cmd", "a", "b", "c"}
+		compareStringArray(t, cmd.Args, want)
+	})
+
+	t.Run("context is set", func(t *testing.T) {
+		ctx := context.WithValue(context.Background(), "key", "value")
+		name := "echo"
+
+		cmd := commandContext(ctx, name)
+
+		if cmd == nil {
+			t.Fatal("expected command, got nil")
+		}
+
+		// We can't directly compare contexts, but we can ensure it's not nil
+		if cmd.Process != nil {
+			t.Fatal("process should not be started yet")
+		}
+	})
+}
+
+func TestDownloadRequestDownload(t *testing.T) {
+	testCases := []struct {
+		testName        string
+		downloadRequest DownloadRequest
+		funcCommand     func(ctx context.Context, name string, args ...string) *exec.Cmd
+		wantFilepath    string
+		err             error
+	}{
+		{
+			"test 1",
+			DownloadRequest{
+				startSecond: StartSecond,
+				endSecond:   EndSecond,
+				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
+				mediaKind:   MediaVideo,
+			},
+			func(ctx context.Context, name string, args ...string) *exec.Cmd {
+				return exec.CommandContext(ctx, "echo", "saoris-show-428-KECHUTI.mp4") // #nosec G204
+			},
+			"saoris-show-428-KECHUTI.mp4",
+			nil,
+		},
+		{
+			"test 2",
+			DownloadRequest{
+				startSecond: 10,
+				endSecond:   10,
+				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
+				mediaKind:   MediaVideo,
+			},
+			func(ctx context.Context, name string, args ...string) *exec.Cmd {
+				return exec.CommandContext(ctx, "echo", "saoris-show-428-KECHUTI.mp4") // #nosec G204
+			},
+			"",
+			nil,
+		},
+		{
+			"test 3",
+			DownloadRequest{
+				startSecond: StartSecond,
+				endSecond:   EndSecond,
+				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
+				mediaKind:   MediaVideo,
+			},
+			func(ctx context.Context, name string, args ...string) *exec.Cmd {
+				return exec.CommandContext(
+					ctx,
+					"thisisacommandthatdoesnotexistandshouldmakethisfail",
+					"anything",
+				) // #nosec G204
+			},
+			"",
+			errors.New(
+				`yt-dlp failed: exec: "thisisacommandthatdoesnotexistandshouldmakethisfail": executable file not found in $PATH: `,
+			),
+		},
+		{
+			"test 4",
+			DownloadRequest{
+				startSecond: StartSecond,
+				endSecond:   EndSecond,
+				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
+				mediaKind:   MediaVideo,
+			},
+			func(ctx context.Context, name string, args ...string) *exec.Cmd {
+				return exec.CommandContext(ctx, "echo", "") // #nosec G204
+			},
+			"",
+			errors.New("yt-dlp succeeded but did not print the output filepath"),
+		},
+		{
+			"trims newline from stdout",
+			DownloadRequest{
+				startSecond: StartSecond,
+				endSecond:   EndSecond,
+				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
+				mediaKind:   MediaVideo,
+			},
+			func(ctx context.Context, name string, args ...string) *exec.Cmd {
+				return exec.CommandContext(ctx, "echo", "file.mp4\n")
+			},
+			"file.mp4",
+			nil,
+		},
+		{
+			"trims spaces from stdout",
+			DownloadRequest{
+				startSecond: StartSecond,
+				endSecond:   EndSecond,
+				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
+				mediaKind:   MediaVideo,
+			},
+			func(ctx context.Context, name string, args ...string) *exec.Cmd {
+				return exec.CommandContext(ctx, "echo", "   file.mp4   ")
+			},
+			"file.mp4",
+			nil,
+		},
+		{
+			"command fails with stderr output",
+			DownloadRequest{
+				startSecond: StartSecond,
+				endSecond:   EndSecond,
+				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
+				mediaKind:   MediaVideo,
+			},
+			func(ctx context.Context, name string, args ...string) *exec.Cmd {
+				return exec.CommandContext(ctx, "sh", "-c", "echo error >&2; exit 1")
+			},
+			"",
+			errors.New("yt-dlp failed: exit status 1: error\n"),
+		},
+		{
+			"command fails without stderr",
+			DownloadRequest{
+				startSecond: StartSecond,
+				endSecond:   EndSecond,
+				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
+				mediaKind:   MediaVideo,
+			},
+			func(ctx context.Context, name string, args ...string) *exec.Cmd {
+				return exec.CommandContext(ctx, "sh", "-c", "exit 1")
+			},
+			"",
+			errors.New("yt-dlp failed: exit status 1: "),
+		},
+		{
+			"multi-line stdout",
+			DownloadRequest{
+				startSecond: StartSecond,
+				endSecond:   EndSecond,
+				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
+				mediaKind:   MediaVideo,
+			},
+			func(ctx context.Context, name string, args ...string) *exec.Cmd {
+				return exec.CommandContext(ctx, "sh", "-c", "printf 'file.mp4\nextra\n'")
+			},
+			"file.mp4\nextra",
+			nil,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			productionCommandContext := commandContext
+			commandContext = tc.funcCommand
+			defer func() {
+				commandContext = productionCommandContext
+			}()
+			got, err := tc.downloadRequest.Download()
+			if tc.err != nil && err == nil {
+				t.Fatalf("got nil, want %q", tc.err.Error())
+			}
+			if tc.err != nil && err != nil && tc.err.Error() != err.Error() {
+				t.Fatalf("got %q, want %q", err.Error(), tc.err.Error())
+			}
+			if got != tc.wantFilepath {
+				t.Fatalf("got %q, want %q", got, tc.wantFilepath)
+			}
+		})
+	}
 }

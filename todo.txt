@@ -186,3 +186,5 @@ binary reads env vars normally
 protect the env file with chmod 600
 That is the usual and practical way to do this securely for a user-scoped service.
 
+
+Some test cases might fail at Windows, specially the ones for ytdlp_tests.go
