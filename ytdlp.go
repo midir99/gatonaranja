@@ -38,7 +38,12 @@ type DownloadRequest struct {
 // validateYouTubeURL parses rawURL and reports whether it is a valid YouTube
 // URL using the http or https scheme.
 func validateYouTubeURL(rawURL string) (string, error) {
-	parsedURL, err := url.Parse(strings.TrimSpace(rawURL))
+	rawURLNoSpaces := strings.TrimSpace(rawURL)
+	if rawURLNoSpaces == "" {
+		return "", fmt.Errorf("invalid URL %q", rawURL)
+	}
+
+	parsedURL, err := url.Parse(rawURLNoSpaces)
 	if err != nil {
 		return "", fmt.Errorf("invalid URL %q", rawURL)
 	}
@@ -68,7 +73,7 @@ func ParseDownloadRequest(downloadRequestString string) (DownloadRequest, error)
 	invalidDownloadRequestErr := fmt.Errorf(
 		invalidDownloadRequestErrTemplate,
 		downloadRequestString,
-		"download request does not follow the format",
+		errors.New("download request does not follow the format"),
 	)
 
 	args := strings.Fields(downloadRequestString)
@@ -79,7 +84,9 @@ func ParseDownloadRequest(downloadRequestString string) (DownloadRequest, error)
 	}
 
 	downloadRequest := DownloadRequest{
-		mediaKind: MediaVideo,
+		startSecond: StartSecond,
+		endSecond:   EndSecond,
+		mediaKind:   MediaVideo,
 	}
 
 	videoURL, err := validateYouTubeURL(args[0])
@@ -92,8 +99,6 @@ func ParseDownloadRequest(downloadRequestString string) (DownloadRequest, error)
 	case 1:
 		// If its 1 argument we just received the video URL.
 		// Example: https://www.youtube.com/watch?v=J---aiyznGQ
-		downloadRequest.startSecond = StartSecond
-		downloadRequest.endSecond = EndSecond
 		return downloadRequest, nil
 	case 2:
 		// If its 2 arguments we received the video URL and a timestamp range or the audio flag.
@@ -191,6 +196,10 @@ func (dr DownloadRequest) BuildCommand() ([]string, error) {
 	return cmd, nil
 }
 
+var commandContext = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+	return exec.CommandContext(ctx, name, args...)
+}
+
 // Download executes the yt-dlp command for the download request and returns
 // the final output filepath reported by yt-dlp.
 func (dr DownloadRequest) Download() (string, error) {
@@ -202,7 +211,7 @@ func (dr DownloadRequest) Download() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...) // #nosec G204
+	cmd := commandContext(ctx, cmdArgs[0], cmdArgs[1:]...) // #nosec G204
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
