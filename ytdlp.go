@@ -22,7 +22,7 @@ const (
 // MediaDownloader describes a media download request that can download itself
 // and report the kind of media it produces.
 type MediaDownloader interface {
-	Download() (string, error)
+	Download(ctx context.Context) (string, error)
 	MediaKind() MediaKind
 }
 
@@ -202,14 +202,14 @@ var commandContext = func(ctx context.Context, name string, args ...string) *exe
 
 // Download executes the yt-dlp command for the download request and returns
 // the final output filepath reported by yt-dlp.
-func (dr DownloadRequest) Download() (string, error) {
+func (dr DownloadRequest) Download(ctx context.Context) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+
 	cmdArgs, err := dr.BuildCommand()
 	if err != nil {
 		return "", err
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
 
 	cmd := commandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
 

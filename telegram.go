@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
+	"sync"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -62,12 +64,13 @@ var removeFile = os.Remove
 // handleDownloadRequest executes the download request and replies to the
 // original Telegram message with the downloaded media or an error message.
 func handleDownloadRequest(
+	ctx context.Context,
 	bot MessageSender,
 	logger *slog.Logger,
 	message *tgbotapi.Message,
 	mediaDownloader MediaDownloader,
 ) {
-	mediaFilename, err := mediaDownloader.Download()
+	mediaFilename, err := mediaDownloader.Download(ctx)
 	if err != nil {
 		logger.Error(
 			"Failed to download request",
@@ -122,16 +125,22 @@ func handleDownloadRequest(
 }
 
 var dispatchDownloadRequest = func(
+	ctx context.Context,
 	bot MessageSender,
 	logger *slog.Logger,
 	message *tgbotapi.Message,
 	downloadSlots chan struct{},
 	mediaDownloader MediaDownloader,
+	downloadsWG *sync.WaitGroup,
 ) {
+	downloadsWG.Add(1)
 	go func() {
+		defer downloadsWG.Done()
+
 		downloadSlots <- struct{}{}
 		defer func() { <-downloadSlots }()
-		handleDownloadRequest(bot, logger, message, mediaDownloader)
+
+		handleDownloadRequest(ctx, bot, logger, message, mediaDownloader)
 	}()
 }
 
@@ -139,14 +148,26 @@ var dispatchDownloadRequest = func(
 // authorization, parses the download request, sends an acknowledgement,
 // and dispatches the download work asynchronously.
 func handleMessage(
+	ctx context.Context,
 	bot MessageSender,
 	logger *slog.Logger,
 	message *tgbotapi.Message,
 	authorizedUsers []int64,
 	downloadSlots chan struct{},
+	downloadsWG *sync.WaitGroup,
 ) {
 	if message == nil {
 		return
+	}
+	select {
+	case <-ctx.Done():
+		logger.Info(
+			"Ignoring request because shutdown is in progress",
+			"user_id", message.From.ID,
+			"user_name", message.From.UserName,
+		)
+		return
+	default:
 	}
 	// Check if user is authorized
 	if !UserIsAuthorized(message.From.ID, authorizedUsers) {
@@ -181,7 +202,7 @@ func handleMessage(
 
 	// Let the user know you are working on the download
 	sendReply(bot, logger, message, "Wait a minute...")
-	dispatchDownloadRequest(bot, logger, message, downloadSlots, downloadRequest)
+	dispatchDownloadRequest(ctx, bot, logger, message, downloadSlots, downloadRequest, downloadsWG)
 }
 
 var getUpdatesChan = func(bot *tgbotapi.BotAPI, u tgbotapi.UpdateConfig) tgbotapi.UpdatesChannel {
@@ -190,12 +211,21 @@ var getUpdatesChan = func(bot *tgbotapi.BotAPI, u tgbotapi.UpdateConfig) tgbotap
 
 // RunTelegramBot starts receiving Telegram updates and handles each incoming
 // message using the provided authorization list and download concurrency limit.
-func RunTelegramBot(bot *tgbotapi.BotAPI, logger *slog.Logger, authorizedUsers []int64, downloadSlots chan struct{}) {
+func RunTelegramBot(ctx context.Context, bot *tgbotapi.BotAPI, logger *slog.Logger, authorizedUsers []int64, downloadSlots chan struct{}, downloadsWG *sync.WaitGroup) {
 	// Start the infinite loop to receive messages
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 	updates := getUpdatesChan(bot, u)
-	for update := range updates {
-		handleMessage(bot, logger, update.Message, authorizedUsers, downloadSlots)
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Info("Stopping Telegram update loop")
+			return
+		case update, ok := <-updates:
+			if !ok {
+				return
+			}
+			handleMessage(ctx, bot, logger, update.Message, authorizedUsers, downloadSlots, downloadsWG)
+		}
 	}
 }

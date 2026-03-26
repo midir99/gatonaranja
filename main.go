@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -34,6 +38,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Set up graceful shutdown
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	var downloadsWG sync.WaitGroup
+
 	// Bootstrap the bot
 	bot, err := tgbotapi.NewBotAPI(config.TelegramBotToken)
 	if err != nil {
@@ -44,5 +53,8 @@ func main() {
 	// Set up a semaphore for limiting the downloads
 	downloadSlots := make(chan struct{}, 5)
 	logger.Info("Starting Telegram update loop", "download_slots", cap(downloadSlots))
-	RunTelegramBot(bot, logger, config.AuthorizedUsers, downloadSlots)
+	RunTelegramBot(ctx, bot, logger, config.AuthorizedUsers, downloadSlots, &downloadsWG)
+	logger.Info("Waiting for active downloads to finish")
+	downloadsWG.Wait()
+	logger.Info("Shutdown complete")
 }
