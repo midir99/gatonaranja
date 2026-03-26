@@ -1,10 +1,8 @@
 Make the download slots a flag parameters
 Add a download timeout and add it as a flag parameter
-Enable graceful shutdown by listening to Ctrl+C or SIGTERM SIGKIll
-Ask the AI to show you the places where errors are not being handled, like the Telegram bot calls
-
-
-ytdlp.go (line 500): ParseDownloadRequest accepts many non-URLs as valid input because url.Parse only checks syntax, not that the request is an actual http/https URL with a host. Inputs like "hello" or "youtube.com/foo" will pass parsing and fail later in yt-dlp, which makes user feedback worse. I’d validate Scheme and Host explicitly.
+Add per user limits, for example: user has 20 downloads per day
+If the bot gets so big start using a requestID, not now
+Try to get as much metadata from the video as possible, at least artist name, so when someone downloads audio they can have the artist name
 
 telegram.go (line 258): the current “goroutine per request + semaphore inside goroutine” pattern keeps the update loop responsive, but it still allows an unbounded number of waiting goroutines if many requests arrive while all 5 slots are busy. That’s fine for a small/private bot, but if usage grows, a bounded worker queue would be safer than unlimited parked goroutines.
 
@@ -12,7 +10,6 @@ telegram.go (line 258): the current “goroutine per request + semaphore inside 
 |
 Maybe for above I implement bouned worker queue or per-user queue limits...
 
-cmd.go (line 34): ParseConfig uses the global flag package directly. That is okay for production startup, but it makes repeated parsing in tests awkward and couples config parsing to process-global state. If you plan to add tests, switching to a dedicated flag.FlagSet would make the CLI layer much easier to exercise.
 
 
 A common user-scoped approach is to install binaries into:
@@ -187,4 +184,3 @@ protect the env file with chmod 600
 That is the usual and practical way to do this securely for a user-scoped service.
 
 
-Some test cases might fail at Windows, specially the ones for ytdlp_tests.go
