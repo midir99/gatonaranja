@@ -57,6 +57,8 @@ func sendReply(
 	}
 }
 
+var removeFile = os.Remove
+
 // handleDownloadRequest executes the download request and replies to the
 // original Telegram message with the downloaded media or an error message.
 func handleDownloadRequest(
@@ -107,7 +109,7 @@ func handleDownloadRequest(
 		)
 		sendReply(bot, logger, message, "I downloaded it, but I couldn't send it to you.")
 	}
-	err = os.Remove(mediaFilename)
+	err = removeFile(mediaFilename)
 	if err != nil {
 		logger.Warn(
 			"Failed to remove downloaded file",
@@ -117,6 +119,20 @@ func handleDownloadRequest(
 			"error", err,
 		)
 	}
+}
+
+var dispatchDownloadRequest = func(
+	bot MessageSender,
+	logger *slog.Logger,
+	message *tgbotapi.Message,
+	downloadSlots chan struct{},
+	mediaDownloader MediaDownloader,
+) {
+	go func() {
+		downloadSlots <- struct{}{}
+		defer func() { <-downloadSlots }()
+		handleDownloadRequest(bot, logger, message, mediaDownloader)
+	}()
 }
 
 // handleMessage validates the incoming Telegram message, checks user
@@ -150,7 +166,6 @@ func handleMessage(
 		"message_text", message.Text,
 	) // #nosec G706
 
-	// Let the user know you are working on the download
 	downloadRequest, err := ParseDownloadRequest(message.Text)
 	if err != nil {
 		logger.Warn(
@@ -164,13 +179,13 @@ func handleMessage(
 		return
 	}
 
+	// Let the user know you are working on the download
 	sendReply(bot, logger, message, "Wait a minute...")
-	go func() {
-		downloadSlots <- struct{}{}
-		defer func() { <-downloadSlots }()
+	dispatchDownloadRequest(bot, logger, message, downloadSlots, downloadRequest)
+}
 
-		handleDownloadRequest(bot, logger, message, downloadRequest)
-	}()
+var getUpdatesChan = func(bot *tgbotapi.BotAPI, u tgbotapi.UpdateConfig) tgbotapi.UpdatesChannel {
+	return bot.GetUpdatesChan(u)
 }
 
 // RunTelegramBot starts receiving Telegram updates and handles each incoming
@@ -179,7 +194,7 @@ func RunTelegramBot(bot *tgbotapi.BotAPI, logger *slog.Logger, authorizedUsers [
 	// Start the infinite loop to receive messages
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
-	updates := bot.GetUpdatesChan(u)
+	updates := getUpdatesChan(bot, u)
 	for update := range updates {
 		handleMessage(bot, logger, update.Message, authorizedUsers, downloadSlots)
 	}
