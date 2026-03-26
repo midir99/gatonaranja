@@ -16,6 +16,7 @@ build:
 ## clean: remove Go build artifacts
 clean:
 	go clean
+	rm -f coverage.html coverage.out
 
 
 ## fmt: format the code using golangci-lint

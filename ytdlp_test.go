@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -702,13 +704,57 @@ func TestCommandContext(t *testing.T) {
 	})
 }
 
+func TestHelperProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+
+	args := os.Args
+	mode := args[len(args)-1]
+
+	switch mode {
+	case "success":
+		fmt.Fprint(os.Stdout, "file.mp4")
+		os.Exit(0)
+	case "empty-success":
+		os.Exit(0)
+	case "success-with-spaces":
+		fmt.Fprint(os.Stdout, "\n\n \t \r file.mp4   		\n\t")
+		os.Exit(0)
+	case "stderr-and-fail":
+		fmt.Fprint(os.Stderr, "error")
+		os.Exit(1)
+	case "fail-without-stderr":
+		os.Exit(1)
+	case "multiline-stdout":
+		fmt.Fprint(os.Stdout, "file.mp4\nextra\n")
+		os.Exit(0)
+	default:
+		fmt.Fprint(os.Stderr, "unknown helper mode")
+		os.Exit(2)
+	}
+}
+
+func helperCommand(ctx context.Context, mode string) *exec.Cmd {
+	cmd := exec.CommandContext(
+		ctx,
+		os.Args[0],
+		"-test.run=TestHelperProcess",
+		"--",
+		mode,
+	)
+	cmd.Env = append(os.Environ(), "GO_WANT_HELPER_PROCESS=1")
+	return cmd
+}
+
 func TestDownloadRequestDownload(t *testing.T) {
 	testCases := []struct {
 		testName        string
 		downloadRequest DownloadRequest
 		funcCommand     func(ctx context.Context, name string, args ...string) *exec.Cmd
 		wantFilepath    string
-		err             error
+		wantErr         bool
+		wantErrContains []string
 	}{
 		{
 			"test 1",
@@ -719,10 +765,11 @@ func TestDownloadRequestDownload(t *testing.T) {
 				mediaKind:   MediaVideo,
 			},
 			func(ctx context.Context, name string, args ...string) *exec.Cmd {
-				return exec.CommandContext(ctx, "echo", "saoris-show-428-KECHUTI.mp4") // #nosec G204
+				return helperCommand(ctx, "success")
 			},
-			"saoris-show-428-KECHUTI.mp4",
-			nil,
+			"file.mp4",
+			false,
+			[]string{},
 		},
 		{
 			"test 2",
@@ -733,30 +780,11 @@ func TestDownloadRequestDownload(t *testing.T) {
 				mediaKind:   MediaVideo,
 			},
 			func(ctx context.Context, name string, args ...string) *exec.Cmd {
-				return exec.CommandContext(ctx, "echo", "saoris-show-428-KECHUTI.mp4") // #nosec G204
+				return helperCommand(ctx, "success")
 			},
 			"",
-			nil,
-		},
-		{
-			"test 3",
-			DownloadRequest{
-				startSecond: StartSecond,
-				endSecond:   EndSecond,
-				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
-				mediaKind:   MediaVideo,
-			},
-			func(ctx context.Context, name string, args ...string) *exec.Cmd {
-				return exec.CommandContext(
-					ctx,
-					"thisisacommandthatdoesnotexistandshouldmakethisfail",
-					"anything",
-				) // #nosec G204
-			},
-			"",
-			errors.New(
-				`yt-dlp failed: exec: "thisisacommandthatdoesnotexistandshouldmakethisfail": executable file not found in $PATH: `,
-			),
+			true,
+			[]string{"start second must be lower than end second"},
 		},
 		{
 			"test 4",
@@ -767,24 +795,11 @@ func TestDownloadRequestDownload(t *testing.T) {
 				mediaKind:   MediaVideo,
 			},
 			func(ctx context.Context, name string, args ...string) *exec.Cmd {
-				return exec.CommandContext(ctx, "echo", "") // #nosec G204
+				return helperCommand(ctx, "empty-success")
 			},
 			"",
-			errors.New("yt-dlp succeeded but did not print the output filepath"),
-		},
-		{
-			"trims newline from stdout",
-			DownloadRequest{
-				startSecond: StartSecond,
-				endSecond:   EndSecond,
-				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
-				mediaKind:   MediaVideo,
-			},
-			func(ctx context.Context, name string, args ...string) *exec.Cmd {
-				return exec.CommandContext(ctx, "echo", "file.mp4\n")
-			},
-			"file.mp4",
-			nil,
+			true,
+			[]string{"yt-dlp succeeded but did not print the output filepath"},
 		},
 		{
 			"trims spaces from stdout",
@@ -795,10 +810,11 @@ func TestDownloadRequestDownload(t *testing.T) {
 				mediaKind:   MediaVideo,
 			},
 			func(ctx context.Context, name string, args ...string) *exec.Cmd {
-				return exec.CommandContext(ctx, "echo", "   file.mp4   ")
+				return helperCommand(ctx, "success-with-spaces")
 			},
 			"file.mp4",
-			nil,
+			false,
+			[]string{},
 		},
 		{
 			"command fails with stderr output",
@@ -809,10 +825,11 @@ func TestDownloadRequestDownload(t *testing.T) {
 				mediaKind:   MediaVideo,
 			},
 			func(ctx context.Context, name string, args ...string) *exec.Cmd {
-				return exec.CommandContext(ctx, "sh", "-c", "echo error >&2; exit 1")
+				return helperCommand(ctx, "stderr-and-fail")
 			},
 			"",
-			errors.New("yt-dlp failed: exit status 1: error\n"),
+			true,
+			[]string{"yt-dlp failed", "error"},
 		},
 		{
 			"command fails without stderr",
@@ -823,10 +840,11 @@ func TestDownloadRequestDownload(t *testing.T) {
 				mediaKind:   MediaVideo,
 			},
 			func(ctx context.Context, name string, args ...string) *exec.Cmd {
-				return exec.CommandContext(ctx, "sh", "-c", "exit 1")
+				return helperCommand(ctx, "fail-without-stderr")
 			},
 			"",
-			errors.New("yt-dlp failed: exit status 1: "),
+			true,
+			[]string{"yt-dlp failed"},
 		},
 		{
 			"multi-line stdout",
@@ -837,10 +855,11 @@ func TestDownloadRequestDownload(t *testing.T) {
 				mediaKind:   MediaVideo,
 			},
 			func(ctx context.Context, name string, args ...string) *exec.Cmd {
-				return exec.CommandContext(ctx, "sh", "-c", "printf 'file.mp4\nextra\n'")
+				return helperCommand(ctx, "multiline-stdout")
 			},
 			"file.mp4\nextra",
-			nil,
+			false,
+			[]string{},
 		},
 	}
 	for _, tc := range testCases {
@@ -851,11 +870,19 @@ func TestDownloadRequestDownload(t *testing.T) {
 				commandContext = productionCommandContext
 			}()
 			got, err := tc.downloadRequest.Download()
-			if tc.err != nil && err == nil {
-				t.Fatalf("got nil, want %q", tc.err.Error())
+			if !tc.wantErr && err != nil {
+				t.Fatalf("got error %q, want nil", err.Error())
 			}
-			if tc.err != nil && err != nil && tc.err.Error() != err.Error() {
-				t.Fatalf("got %q, want %q", err.Error(), tc.err.Error())
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("got nil error, want error")
+				} else {
+					for _, errString := range tc.wantErrContains {
+						if !strings.Contains(err.Error(), errString) {
+							t.Fatalf("error %q does not contain %q", err.Error(), errString)
+						}
+					}
+				}
 			}
 			if got != tc.wantFilepath {
 				t.Fatalf("got %q, want %q", got, tc.wantFilepath)

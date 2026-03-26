@@ -101,8 +101,66 @@ func TestSendReply(t *testing.T) {
 		}
 	})
 }
-func TestHandleDownloadRequest(t *testing.T) {
 
+type goodMediaDownloader struct {
+	mediaKind MediaKind
+}
+
+func (md goodMediaDownloader) Download() (string, error) {
+	return "funny-video.mp4", nil
+}
+
+func (md goodMediaDownloader) MediaKind() MediaKind {
+	return md.mediaKind
+}
+
+type badMediaDownloader struct {
+	mediaKind MediaKind
+}
+
+func (md badMediaDownloader) Download() (string, error) {
+	return "", errors.New("no se pudo")
+}
+
+func (md badMediaDownloader) MediaKind() MediaKind {
+	return md.mediaKind
+}
+
+func TestHandleDownloadRequest(t *testing.T) {
+	t.Run("success with video", func(t *testing.T) {
+		sender := goodMessageSender{}
+		var buf bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&buf, nil))
+		message := tgbotapi.Message{
+			MessageID: 1,
+			Chat:      &tgbotapi.Chat{ID: 1},
+			From:      &tgbotapi.User{ID: 12345, UserName: "arthurmorgan"},
+			Text:      "",
+		}
+		downloader := goodMediaDownloader{mediaKind: MediaVideo}
+
+		handleDownloadRequest(sender, logger, &message, downloader)
+
+		output := buf.String()
+
+		// Assert message
+		if !strings.Contains(output, "Completed request") {
+			t.Fatalf("expected log message, got: %s", output)
+		}
+
+		// Assert fields
+		if !strings.Contains(output, "user_id=12345") {
+			t.Fatalf("expected user_id, got: %s", output)
+		}
+
+		if !strings.Contains(output, "user_name=arthurmorgan") {
+			t.Fatalf("expected user_name, got: %s", output)
+		}
+
+		if !strings.Contains(output, "message_text=") {
+			t.Fatalf("expected message_text, got: %s", output)
+		}
+	})
 }
 func TestHandleMessage(t *testing.T) {
 
