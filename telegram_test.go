@@ -10,6 +10,13 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+func assertContains(t *testing.T, got, want, field string) {
+	t.Helper()
+	if !strings.Contains(got, want) {
+		t.Fatalf("%s: expected log output to contain %q, got %q", field, want, got)
+	}
+}
+
 func TestLogTelegramSendError(t *testing.T) {
 	var buf bytes.Buffer
 
@@ -23,23 +30,13 @@ func TestLogTelegramSendError(t *testing.T) {
 
 	output := buf.String()
 
-	// Assert message
-	if !strings.Contains(output, "Failed to send Telegram message") {
-		t.Fatalf("expected log message, got: %s", output)
-	}
+	assertContains(t, output, "Failed to send Telegram message", "message")
+	assertContains(t, output, "user_id=12345", "user_id")
+	assertContains(t, output, "user_name=arthurmorgan", "user_name")
 
-	// Assert fields
-	if !strings.Contains(output, "user_id=12345") {
-		t.Fatalf("expected user_id, got: %s", output)
-	}
-
-	if !strings.Contains(output, "user_name=arthurmorgan") {
-		t.Fatalf("expected user_name, got: %s", output)
-	}
-
-	if !strings.Contains(output, "error=\"something went wrong\"") &&
+	if !strings.Contains(output, `error="something went wrong"`) &&
 		!strings.Contains(output, "error=something went wrong") {
-		t.Fatalf("expected error field, got: %s", output)
+		t.Fatalf("error field: expected log output to contain the logged error, got %q", output)
 	}
 }
 

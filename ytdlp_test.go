@@ -18,7 +18,7 @@ func TestValidateYouTubeURL(t *testing.T) {
 		err      error
 	}{
 		{
-			"test 1",
+			"youtu.be url",
 			"https://youtu.be/8v_kBIIGViY?si=l79VR-6K5Bo73Tt8",
 			"https://youtu.be/8v_kBIIGViY?si=l79VR-6K5Bo73Tt8",
 			nil,
@@ -187,7 +187,7 @@ func TestParseDownloadRequest(t *testing.T) {
 			"https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp",
 			DownloadRequest{},
 			errors.New(
-				`invalid download request "https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp": invalid timestamp range invalidtimestamp; expected URL [TIMESTAMP_RANGE] [audio]`,
+				`invalid download request "https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp": invalid timestamp range "invalidtimestamp"; expected URL [TIMESTAMP_RANGE] [audio]`,
 			),
 		},
 		{
@@ -195,7 +195,7 @@ func TestParseDownloadRequest(t *testing.T) {
 			"https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp audio",
 			DownloadRequest{},
 			errors.New(
-				`invalid download request "https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp audio": invalid timestamp range invalidtimestamp; expected URL [TIMESTAMP_RANGE] [audio]`,
+				`invalid download request "https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp audio": invalid timestamp range "invalidtimestamp"; expected URL [TIMESTAMP_RANGE] [audio]`,
 			),
 		},
 		{
@@ -401,7 +401,7 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 		err             error
 	}{
 		{
-			"test 1",
+			"video without sections",
 			DownloadRequest{
 				startSecond: StartSecond,
 				endSecond:   EndSecond,
@@ -420,7 +420,7 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 			nil,
 		},
 		{
-			"test 2",
+			"video with download sections",
 			DownloadRequest{
 				startSecond: StartSecond,
 				endSecond:   5,
@@ -440,7 +440,7 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 			nil,
 		},
 		{
-			"test 3",
+			"audio with download sections",
 			DownloadRequest{
 				startSecond: StartSecond,
 				endSecond:   5,
@@ -757,7 +757,7 @@ func TestDownloadRequestDownload(t *testing.T) {
 		wantErrContains []string
 	}{
 		{
-			"test 1",
+			"successful download returns filepath",
 			DownloadRequest{
 				startSecond: StartSecond,
 				endSecond:   EndSecond,
@@ -772,7 +772,7 @@ func TestDownloadRequestDownload(t *testing.T) {
 			[]string{},
 		},
 		{
-			"test 2",
+			"build command error is returned",
 			DownloadRequest{
 				startSecond: 10,
 				endSecond:   10,
@@ -787,7 +787,7 @@ func TestDownloadRequestDownload(t *testing.T) {
 			[]string{"start second must be lower than end second"},
 		},
 		{
-			"test 4",
+			"empty stdout returns filepath error",
 			DownloadRequest{
 				startSecond: StartSecond,
 				endSecond:   EndSecond,

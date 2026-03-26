@@ -174,25 +174,25 @@ func TestFlagOrEnv(t *testing.T) {
 		want              string
 	}{
 		{
-			"test 1",
+			"uses flag value directly",
 			"thisisavalidtelegrambottoken",
 			"TELEGRAM_BOT_TOKEN", "",
 			"thisisavalidtelegrambottoken",
 		},
 		{
-			"test 2",
+			"falls back to env value",
 			"",
 			"TELEGRAM_BOT_TOKEN", "thisisavalidtelegrambottoken",
 			"thisisavalidtelegrambottoken",
 		},
 		{
-			"test 3",
+			"trims flag value",
 			"\n   \t   \rthisisavalidtelegrambottoken\n\t    ",
 			"TELEGRAM_BOT_TOKEN", "",
 			"thisisavalidtelegrambottoken",
 		},
 		{
-			"test 4",
+			"trims env value",
 			"",
 			"TELEGRAM_BOT_TOKEN", "\n   \t   \rthisisavalidtelegrambottoken\n\t    ",
 			"thisisavalidtelegrambottoken",

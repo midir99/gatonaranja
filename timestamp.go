@@ -36,7 +36,7 @@ var TimestampRangePattern = regexp.MustCompile(
 )
 
 func parseSeconds(seconds string) (int, error) {
-	invalidValueErr := fmt.Errorf("invalid seconds value %s: must be between 0 and 59", seconds)
+	invalidValueErr := fmt.Errorf("invalid seconds value %q: must be between 0 and 59", seconds)
 	secondsInt, err := strconv.Atoi(seconds)
 	if err != nil {
 		return 0, invalidValueErr
@@ -48,7 +48,7 @@ func parseSeconds(seconds string) (int, error) {
 }
 
 func parseMinutes(minutes string) (int, error) {
-	invalidValueErr := fmt.Errorf("invalid minutes value %s: must be between 0 and 59", minutes)
+	invalidValueErr := fmt.Errorf("invalid minutes value %q: must be between 0 and 59", minutes)
 	minutesInt, err := strconv.Atoi(minutes)
 	if err != nil {
 		return 0, invalidValueErr
@@ -60,7 +60,7 @@ func parseMinutes(minutes string) (int, error) {
 }
 
 func parseHours(hours string) (int, error) {
-	invalidValueErr := fmt.Errorf("invalid hours value %s: must be between 0 and 11", hours)
+	invalidValueErr := fmt.Errorf("invalid hours value %q: must be between 0 and 11", hours)
 	hoursInt, err := strconv.Atoi(hours)
 	if err != nil {
 		return 0, invalidValueErr
@@ -179,7 +179,7 @@ func parseTimestampRangeParts(parts []string) (int, int, error) {
 // start time is before the end time.
 func TimestampRangeToSeconds(timestampRange string) (int, int, error) {
 	if !TimestampRangePattern.MatchString(timestampRange) {
-		return 0, 0, fmt.Errorf("invalid timestamp range %s", timestampRange)
+		return 0, 0, fmt.Errorf("invalid timestamp range %q", timestampRange)
 	}
 	parts := strings.Split(timestampRange, "-")
 	return parseTimestampRangeParts(parts)
