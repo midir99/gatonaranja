@@ -688,7 +688,7 @@ func TestCommandContext(t *testing.T) {
 	})
 
 	t.Run("context is set", func(t *testing.T) {
-		ctx := context.WithValue(context.Background(), "key", "value")
+		ctx := context.TODO()
 		name := "echo"
 
 		cmd := commandContext(ctx, name)
@@ -704,7 +704,7 @@ func TestCommandContext(t *testing.T) {
 	})
 }
 
-func TestHelperProcess(t *testing.T) {
+func TestHelperProcess(_ *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
 		return
 	}
@@ -764,7 +764,7 @@ func TestDownloadRequestDownload(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				mediaKind:   MediaVideo,
 			},
-			func(ctx context.Context, name string, args ...string) *exec.Cmd {
+			func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
 				return helperCommand(ctx, "success")
 			},
 			"file.mp4",
@@ -779,7 +779,7 @@ func TestDownloadRequestDownload(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				mediaKind:   MediaVideo,
 			},
-			func(ctx context.Context, name string, args ...string) *exec.Cmd {
+			func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
 				return helperCommand(ctx, "success")
 			},
 			"",
@@ -794,7 +794,7 @@ func TestDownloadRequestDownload(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				mediaKind:   MediaVideo,
 			},
-			func(ctx context.Context, name string, args ...string) *exec.Cmd {
+			func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
 				return helperCommand(ctx, "empty-success")
 			},
 			"",
@@ -809,7 +809,7 @@ func TestDownloadRequestDownload(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				mediaKind:   MediaVideo,
 			},
-			func(ctx context.Context, name string, args ...string) *exec.Cmd {
+			func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
 				return helperCommand(ctx, "success-with-spaces")
 			},
 			"file.mp4",
@@ -824,7 +824,7 @@ func TestDownloadRequestDownload(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				mediaKind:   MediaVideo,
 			},
-			func(ctx context.Context, name string, args ...string) *exec.Cmd {
+			func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
 				return helperCommand(ctx, "stderr-and-fail")
 			},
 			"",
@@ -839,7 +839,7 @@ func TestDownloadRequestDownload(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				mediaKind:   MediaVideo,
 			},
-			func(ctx context.Context, name string, args ...string) *exec.Cmd {
+			func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
 				return helperCommand(ctx, "fail-without-stderr")
 			},
 			"",
@@ -854,7 +854,7 @@ func TestDownloadRequestDownload(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				mediaKind:   MediaVideo,
 			},
-			func(ctx context.Context, name string, args ...string) *exec.Cmd {
+			func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
 				return helperCommand(ctx, "multiline-stdout")
 			},
 			"file.mp4\nextra",
@@ -892,7 +892,7 @@ func TestDownloadRequestDownload(t *testing.T) {
 
 	t.Run("canceled context returns command error", func(t *testing.T) {
 		productionCommandContext := commandContext
-		commandContext = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+		commandContext = func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
 			return helperCommand(ctx, "success")
 		}
 		defer func() { commandContext = productionCommandContext }()

@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"strings"
 	"sync"
@@ -58,13 +57,13 @@ func TestLogTelegramSendError(t *testing.T) {
 
 type goodMessageSender struct{}
 
-func (ms goodMessageSender) Send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
+func (ms goodMessageSender) Send(_ tgbotapi.Chattable) (tgbotapi.Message, error) {
 	return tgbotapi.Message{}, nil
 }
 
 type badMessageSender struct{}
 
-func (ms badMessageSender) Send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
+func (ms badMessageSender) Send(_ tgbotapi.Chattable) (tgbotapi.Message, error) {
 	return tgbotapi.Message{}, errors.New("no se pudo")
 }
 
@@ -111,7 +110,7 @@ type goodMediaDownloader struct {
 	mediaKind MediaKind
 }
 
-func (md goodMediaDownloader) Download(ctx context.Context) (string, error) {
+func (md goodMediaDownloader) Download(_ context.Context) (string, error) {
 	return "funny-video.mp4", nil
 }
 
@@ -123,7 +122,7 @@ type badMediaDownloader struct {
 	mediaKind MediaKind
 }
 
-func (md badMediaDownloader) Download(ctx context.Context) (string, error) {
+func (md badMediaDownloader) Download(_ context.Context) (string, error) {
 	return "", errors.New("no se pudo")
 }
 
@@ -131,7 +130,7 @@ func (md badMediaDownloader) MediaKind() MediaKind {
 	return md.mediaKind
 }
 
-func goodRemoveFile(name string) error {
+func goodRemoveFile(_ string) error {
 	return nil
 }
 
@@ -310,13 +309,13 @@ func TestHandleDownloadRequest(t *testing.T) {
 }
 
 var goodDispatchDownloadRequest = func(
-	ctx context.Context,
-	bot MessageSender,
-	logger *slog.Logger,
-	message *tgbotapi.Message,
-	downloadSlots chan struct{},
-	mediaDownloader MediaDownloader,
-	downloadsWG *sync.WaitGroup,
+	_ context.Context,
+	_ MessageSender,
+	_ *slog.Logger,
+	_ *tgbotapi.Message,
+	_ chan struct{},
+	_ MediaDownloader,
+	_ *sync.WaitGroup,
 ) {
 }
 
@@ -354,7 +353,7 @@ func TestHandleMessage(t *testing.T) {
 			"message_text",
 		)
 	})
-	t.Run("nil message", func(t *testing.T) {
+	t.Run("nil message", func(_ *testing.T) {
 		sender := goodMessageSender{}
 		var buf bytes.Buffer
 		logger := slog.New(slog.NewTextHandler(&buf, nil))
@@ -454,13 +453,13 @@ func TestHandleMessage(t *testing.T) {
 
 		productionDispatchDownloadRequest := dispatchDownloadRequest
 		dispatchDownloadRequest = func(
-			ctx context.Context,
-			bot MessageSender,
-			logger *slog.Logger,
-			message *tgbotapi.Message,
-			downloadSlots chan struct{},
+			_ context.Context,
+			_ MessageSender,
+			_ *slog.Logger,
+			_ *tgbotapi.Message,
+			_ chan struct{},
 			mediaDownloader MediaDownloader,
-			downloadsWG *sync.WaitGroup,
+			_ *sync.WaitGroup,
 		) {
 			called = true
 			gotDownloader = mediaDownloader
@@ -510,7 +509,7 @@ func TestHandleMessage(t *testing.T) {
 func TestRunTelegramBot(t *testing.T) {
 	t.Run("consumes updates channel", func(t *testing.T) {
 		bot := &tgbotapi.BotAPI{}
-		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+		logger := slog.New(slog.DiscardHandler)
 		authorizedUsers := []int64{12345}
 		downloadSlots := make(chan struct{}, 1)
 
@@ -535,9 +534,9 @@ func TestRunTelegramBot(t *testing.T) {
 		}
 	})
 
-	t.Run("stops when context is cancelled", func(t *testing.T) {
+	t.Run("stops when context is cancelled", func(_ *testing.T) {
 		bot := &tgbotapi.BotAPI{}
-		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+		logger := slog.New(slog.DiscardHandler)
 		authorizedUsers := []int64{12345}
 		downloadSlots := make(chan struct{}, 1)
 		var downloadsWG sync.WaitGroup
@@ -547,7 +546,7 @@ func TestRunTelegramBot(t *testing.T) {
 		productionGetUpdatesChan := getUpdatesChan
 		defer func() { getUpdatesChan = productionGetUpdatesChan }()
 
-		getUpdatesChan = func(_ *tgbotapi.BotAPI, u tgbotapi.UpdateConfig) tgbotapi.UpdatesChannel {
+		getUpdatesChan = func(_ *tgbotapi.BotAPI, _ tgbotapi.UpdateConfig) tgbotapi.UpdatesChannel {
 			return updates
 		}
 

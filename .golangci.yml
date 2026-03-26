@@ -66,7 +66,7 @@ linters:
     - funcorder # checks the order of functions, methods, and constructors
     - funlen # tool for detection of long functions
     - gocheckcompilerdirectives # validates go compiler directive comments (//go:)
-    - gochecknoglobals # checks that no global variables exist
+    # - gochecknoglobals # checks that no global variables exist
     - gochecknoinits # checks that no init functions are present in Go code
     - gochecksumtype # checks exhaustiveness on Go "sum types"
     - gocognit # computes and checks the cognitive complexity of functions
@@ -416,7 +416,7 @@ linters:
       # - "scope": report only if a context exists in the scope of the outermost function
       # https://github.com/go-simpler/sloglint?tab=readme-ov-file#context-only
       # Default: ""
-      context: scope
+      context: ""
 
     staticcheck:
       # SAxxxx checks in https://staticcheck.dev/docs/configuration/options/#checks

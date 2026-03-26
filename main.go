@@ -38,17 +38,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Set up graceful shutdown
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	var downloadsWG sync.WaitGroup
-
 	// Bootstrap the bot
 	bot, err := tgbotapi.NewBotAPI(config.TelegramBotToken)
 	if err != nil {
 		logger.Error("Startup failed: unable to create Telegram bot", "error", err)
 		os.Exit(1)
 	}
+
+	// Set up graceful shutdown
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	var downloadsWG sync.WaitGroup
+
 	logger.Info("Telegram bot started", "bot_user_id", bot.Self.ID, "bot_user_name", bot.Self.UserName) // #nosec G706
 	// Set up a semaphore for limiting the downloads
 	downloadSlots := make(chan struct{}, 5)

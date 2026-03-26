@@ -134,15 +134,12 @@ var dispatchDownloadRequest = func(
 	mediaDownloader MediaDownloader,
 	downloadsWG *sync.WaitGroup,
 ) {
-	downloadsWG.Add(1)
-	go func() {
-		defer downloadsWG.Done()
-
+	downloadsWG.Go(func() {
 		downloadSlots <- struct{}{}
 		defer func() { <-downloadSlots }()
 
 		handleDownloadRequest(ctx, bot, logger, message, mediaDownloader)
-	}()
+	})
 }
 
 // handleMessage validates the incoming Telegram message, checks user

@@ -196,9 +196,7 @@ func (dr DownloadRequest) BuildCommand() ([]string, error) {
 	return cmd, nil
 }
 
-var commandContext = func(ctx context.Context, name string, args ...string) *exec.Cmd {
-	return exec.CommandContext(ctx, name, args...) // #nosec G204
-}
+var commandContext = exec.CommandContext
 
 // Download executes the yt-dlp command for the download request using the
 // provided context, applies a two-minute timeout, and returns the final
