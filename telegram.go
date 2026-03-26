@@ -61,8 +61,9 @@ func sendReply(
 
 var removeFile = os.Remove
 
-// handleDownloadRequest executes the download request and replies to the
-// original Telegram message with the downloaded media or an error message.
+// handleDownloadRequest executes the download request, replies to the
+// original Telegram message with the downloaded media or an error message,
+// and removes the downloaded file afterward.
 func handleDownloadRequest(
 	ctx context.Context,
 	bot MessageSender,
@@ -209,9 +210,17 @@ var getUpdatesChan = func(bot *tgbotapi.BotAPI, u tgbotapi.UpdateConfig) tgbotap
 	return bot.GetUpdatesChan(u)
 }
 
-// RunTelegramBot starts receiving Telegram updates and handles each incoming
-// message using the provided authorization list and download concurrency limit.
-func RunTelegramBot(ctx context.Context, bot *tgbotapi.BotAPI, logger *slog.Logger, authorizedUsers []int64, downloadSlots chan struct{}, downloadsWG *sync.WaitGroup) {
+// RunTelegramBot starts receiving Telegram updates, handles each incoming
+// message using the provided authorization list and download concurrency
+// limit, and stops when the provided context is canceled.
+func RunTelegramBot(
+	ctx context.Context,
+	bot *tgbotapi.BotAPI,
+	logger *slog.Logger,
+	authorizedUsers []int64,
+	downloadSlots chan struct{},
+	downloadsWG *sync.WaitGroup,
+) {
 	// Start the infinite loop to receive messages
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60

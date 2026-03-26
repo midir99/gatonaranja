@@ -35,6 +35,7 @@ var TimestampRangePattern = regexp.MustCompile(
 	`^(start|([\d]{1,2}:)?[\d]{1,2}:[\d]{1,2})-(end|([\d]{1,2}:)?[\d]{1,2}:[\d]{1,2})$`,
 )
 
+// parseSeconds parses a seconds value and validates that it is between 0 and 59.
 func parseSeconds(seconds string) (int, error) {
 	invalidValueErr := fmt.Errorf("invalid seconds value %q: must be between 0 and 59", seconds)
 	secondsInt, err := strconv.Atoi(seconds)
@@ -47,6 +48,7 @@ func parseSeconds(seconds string) (int, error) {
 	return secondsInt, nil
 }
 
+// parseMinutes parses a minutes value and validates that it is between 0 and 59.
 func parseMinutes(minutes string) (int, error) {
 	invalidValueErr := fmt.Errorf("invalid minutes value %q: must be between 0 and 59", minutes)
 	minutesInt, err := strconv.Atoi(minutes)
@@ -59,6 +61,7 @@ func parseMinutes(minutes string) (int, error) {
 	return minutesInt, nil
 }
 
+// parseHours parses an hours value and validates that it is between 0 and 11.
 func parseHours(hours string) (int, error) {
 	invalidValueErr := fmt.Errorf("invalid hours value %q: must be between 0 and 11", hours)
 	hoursInt, err := strconv.Atoi(hours)

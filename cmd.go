@@ -16,8 +16,9 @@ type Config struct {
 	TelegramBotToken string
 }
 
-// validateAuthorizedUsers parses a comma-separated list of Telegram user IDs
-// and returns them as int64 values.
+// validateAuthorizedUsers parses a comma-separated list of Telegram user IDs,
+// trims surrounding whitespace from each value, removes duplicates, and
+// returns the resulting IDs as int64 values.
 func validateAuthorizedUsers(authorizedUsers string) ([]int64, error) {
 	authorizedUsers = strings.TrimSpace(authorizedUsers)
 	authorizedUsersIntArray := []int64{}
@@ -37,7 +38,8 @@ func validateAuthorizedUsers(authorizedUsers string) ([]int64, error) {
 	return authorizedUsersIntArray, nil
 }
 
-// validateTelegramBotToken validates that the Telegram bot token is not empty.
+// validateTelegramBotToken trims the Telegram bot token and reports an error
+// if the resulting value is empty.
 func validateTelegramBotToken(telegramBotToken string) (string, error) {
 	telegramBotToken = strings.TrimSpace(telegramBotToken)
 	if telegramBotToken == "" {

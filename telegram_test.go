@@ -162,7 +162,12 @@ func TestHandleDownloadRequest(t *testing.T) {
 		assertFieldContains(t, output, "Completed request", "log message")
 		assertFieldContains(t, output, "user_id=12345", "user_id")
 		assertFieldContains(t, output, "user_name=arthurmorgan", "user_name")
-		assertFieldContains(t, output, `message_text="https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05"`, "message_text")
+		assertFieldContains(
+			t,
+			output,
+			`message_text="https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05"`,
+			"message_text",
+		)
 	})
 
 	t.Run("success with audio", func(t *testing.T) {
@@ -189,7 +194,12 @@ func TestHandleDownloadRequest(t *testing.T) {
 		assertFieldContains(t, output, "Completed request", "log message")
 		assertFieldContains(t, output, "user_id=12345", "user_id")
 		assertFieldContains(t, output, "user_name=arthurmorgan", "user_name")
-		assertFieldContains(t, output, `message_text="https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05 audio"`, "message_text")
+		assertFieldContains(
+			t,
+			output,
+			`message_text="https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05 audio"`,
+			"message_text",
+		)
 	})
 
 	t.Run("download failure", func(t *testing.T) {
@@ -216,7 +226,12 @@ func TestHandleDownloadRequest(t *testing.T) {
 		assertFieldContains(t, output, "Failed to download request", "log message")
 		assertFieldContains(t, output, "user_id=12345", "user_id")
 		assertFieldContains(t, output, "user_name=arthurmorgan", "user_name")
-		assertFieldContains(t, output, `message_text="https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05"`, "message_text")
+		assertFieldContains(
+			t,
+			output,
+			`message_text="https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05"`,
+			"message_text",
+		)
 		assertErrorFieldContains(t, output, "no se pudo")
 	})
 
@@ -244,7 +259,12 @@ func TestHandleDownloadRequest(t *testing.T) {
 		assertFieldContains(t, output, "Failed to send media", "log message")
 		assertFieldContains(t, output, "user_id=12345", "user_id")
 		assertFieldContains(t, output, "user_name=arthurmorgan", "user_name")
-		assertFieldContains(t, output, `message_text="https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05"`, "message_text")
+		assertFieldContains(
+			t,
+			output,
+			`message_text="https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05"`,
+			"message_text",
+		)
 		assertErrorFieldContains(t, output, "no se pudo")
 	})
 
@@ -272,7 +292,12 @@ func TestHandleDownloadRequest(t *testing.T) {
 		assertFieldContains(t, output, "Completed request", "log message")
 		assertFieldContains(t, output, "user_id=12345", "user_id")
 		assertFieldContains(t, output, "user_name=arthurmorgan", "user_name")
-		assertFieldContains(t, output, `message_text="https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05"`, "message_text")
+		assertFieldContains(
+			t,
+			output,
+			`message_text="https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05"`,
+			"message_text",
+		)
 
 		assertFieldContains(t, output, "Failed to remove downloaded file", "log message")
 		assertFieldContains(t, output, "user_id=12345", "user_id")
@@ -317,7 +342,12 @@ func TestHandleMessage(t *testing.T) {
 		assertFieldContains(t, output, "Received request", "log message")
 		assertFieldContains(t, output, "user_id=12345", "user_id")
 		assertFieldContains(t, output, "user_name=arthurmorgan", "user_name")
-		assertFieldContains(t, output, `message_text="https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05"`, "message_text")
+		assertFieldContains(
+			t,
+			output,
+			`message_text="https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05"`,
+			"message_text",
+		)
 	})
 	t.Run("nil message", func(t *testing.T) {
 		sender := goodMessageSender{}
@@ -359,7 +389,12 @@ func TestHandleMessage(t *testing.T) {
 		assertFieldContains(t, output, "Rejected unauthorized request", "log message")
 		assertFieldContains(t, output, "user_id=12345", "user_id")
 		assertFieldContains(t, output, "user_name=arthurmorgan", "user_name")
-		assertFieldContains(t, output, `message_text="https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05"`, "message_text")
+		assertFieldContains(
+			t,
+			output,
+			`message_text="https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05"`,
+			"message_text",
+		)
 	})
 	t.Run("parse failure", func(t *testing.T) {
 		sender := goodMessageSender{}
