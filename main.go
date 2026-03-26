@@ -1,29 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
-
-// ValidateRequiredDependencies verifies that the external commands
-// required by the bot are available in the system PATH.
-func ValidateRequiredDependencies() error {
-	dependencies := []string{
-		"ffmpeg",
-		"yt-dlp",
-	}
-	for _, dep := range dependencies {
-		_, err := exec.LookPath(dep)
-		if err != nil {
-			return fmt.Errorf("dependency %s is not installed in the system: %w", dep, err)
-		}
-	}
-	return nil
-}
 
 // newLogger creates the application logger used by the bot.
 func newLogger() *slog.Logger {

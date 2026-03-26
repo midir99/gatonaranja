@@ -444,8 +444,8 @@ func TestRunTelegramBot_ConsumesUpdatesChannel(t *testing.T) {
 
 		updates := make(chan tgbotapi.Update)
 
-		oldGetUpdatesChan := getUpdatesChan
-		defer func() { getUpdatesChan = oldGetUpdatesChan }()
+		productionGetUpdatesChan := getUpdatesChan
+		defer func() { getUpdatesChan = productionGetUpdatesChan }()
 
 		var gotConfig tgbotapi.UpdateConfig
 		getUpdatesChan = func(_ *tgbotapi.BotAPI, u tgbotapi.UpdateConfig) tgbotapi.UpdatesChannel {
