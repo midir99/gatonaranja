@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -109,7 +111,7 @@ type goodMediaDownloader struct {
 	mediaKind MediaKind
 }
 
-func (md goodMediaDownloader) Download() (string, error) {
+func (md goodMediaDownloader) Download(ctx context.Context) (string, error) {
 	return "funny-video.mp4", nil
 }
 
@@ -121,7 +123,7 @@ type badMediaDownloader struct {
 	mediaKind MediaKind
 }
 
-func (md badMediaDownloader) Download() (string, error) {
+func (md badMediaDownloader) Download(ctx context.Context) (string, error) {
 	return "", errors.New("no se pudo")
 }
 
@@ -155,7 +157,7 @@ func TestHandleDownloadRequest(t *testing.T) {
 			removeFile = productionRemoveFile
 		}()
 
-		handleDownloadRequest(sender, logger, &message, downloader)
+		handleDownloadRequest(context.Background(), sender, logger, &message, downloader)
 
 		output := buf.String()
 
@@ -187,7 +189,7 @@ func TestHandleDownloadRequest(t *testing.T) {
 			removeFile = productionRemoveFile
 		}()
 
-		handleDownloadRequest(sender, logger, &message, downloader)
+		handleDownloadRequest(context.Background(), sender, logger, &message, downloader)
 
 		output := buf.String()
 
@@ -219,7 +221,7 @@ func TestHandleDownloadRequest(t *testing.T) {
 			removeFile = productionRemoveFile
 		}()
 
-		handleDownloadRequest(sender, logger, &message, downloader)
+		handleDownloadRequest(context.Background(), sender, logger, &message, downloader)
 
 		output := buf.String()
 
@@ -252,7 +254,7 @@ func TestHandleDownloadRequest(t *testing.T) {
 			removeFile = productionRemoveFile
 		}()
 
-		handleDownloadRequest(sender, logger, &message, downloader)
+		handleDownloadRequest(context.Background(), sender, logger, &message, downloader)
 
 		output := buf.String()
 
@@ -285,7 +287,7 @@ func TestHandleDownloadRequest(t *testing.T) {
 			removeFile = productionRemoveFile
 		}()
 
-		handleDownloadRequest(sender, logger, &message, downloader)
+		handleDownloadRequest(context.Background(), sender, logger, &message, downloader)
 
 		output := buf.String()
 
@@ -308,11 +310,13 @@ func TestHandleDownloadRequest(t *testing.T) {
 }
 
 var goodDispatchDownloadRequest = func(
+	ctx context.Context,
 	bot MessageSender,
 	logger *slog.Logger,
 	message *tgbotapi.Message,
 	downloadSlots chan struct{},
 	mediaDownloader MediaDownloader,
+	downloadsWG *sync.WaitGroup,
 ) {
 }
 
@@ -335,7 +339,8 @@ func TestHandleMessage(t *testing.T) {
 			dispatchDownloadRequest = productionRunDownloadRequest
 		}()
 
-		handleMessage(sender, logger, &message, authorizedUsers, downloadSlots)
+		var downloadsWG sync.WaitGroup
+		handleMessage(context.Background(), sender, logger, &message, authorizedUsers, downloadSlots, &downloadsWG)
 
 		output := buf.String()
 
@@ -362,7 +367,8 @@ func TestHandleMessage(t *testing.T) {
 			dispatchDownloadRequest = productionRunDownloadRequest
 		}()
 
-		handleMessage(sender, logger, nilMessage, authorizedUsers, downloadSlots)
+		var downloadsWG sync.WaitGroup
+		handleMessage(context.Background(), sender, logger, nilMessage, authorizedUsers, downloadSlots, &downloadsWG)
 	})
 	t.Run("unauthorized user", func(t *testing.T) {
 		sender := goodMessageSender{}
@@ -382,7 +388,8 @@ func TestHandleMessage(t *testing.T) {
 			dispatchDownloadRequest = productionRunDownloadRequest
 		}()
 
-		handleMessage(sender, logger, &message, authorizedUsers, downloadSlots)
+		var downloadsWG sync.WaitGroup
+		handleMessage(context.Background(), sender, logger, &message, authorizedUsers, downloadSlots, &downloadsWG)
 
 		output := buf.String()
 
@@ -414,7 +421,8 @@ func TestHandleMessage(t *testing.T) {
 			dispatchDownloadRequest = productionRunDownloadRequest
 		}()
 
-		handleMessage(sender, logger, &message, authorizedUsers, downloadSlots)
+		var downloadsWG sync.WaitGroup
+		handleMessage(context.Background(), sender, logger, &message, authorizedUsers, downloadSlots, &downloadsWG)
 
 		output := buf.String()
 
@@ -446,11 +454,13 @@ func TestHandleMessage(t *testing.T) {
 
 		productionDispatchDownloadRequest := dispatchDownloadRequest
 		dispatchDownloadRequest = func(
+			ctx context.Context,
 			bot MessageSender,
 			logger *slog.Logger,
 			message *tgbotapi.Message,
 			downloadSlots chan struct{},
 			mediaDownloader MediaDownloader,
+			downloadsWG *sync.WaitGroup,
 		) {
 			called = true
 			gotDownloader = mediaDownloader
@@ -460,7 +470,9 @@ func TestHandleMessage(t *testing.T) {
 			dispatchDownloadRequest = productionDispatchDownloadRequest
 		}()
 
-		handleMessage(sender, logger, &message, authorizedUsers, downloadSlots)
+		var downloadsWG sync.WaitGroup
+		handleMessage(context.Background(), sender, logger, &message, authorizedUsers, downloadSlots, &downloadsWG)
+
 		if !called {
 			t.Fatal("expected download request to be dispatched")
 		}
@@ -469,8 +481,33 @@ func TestHandleMessage(t *testing.T) {
 			t.Fatalf("got media kind %v, want %v", gotDownloader.MediaKind(), MediaAudio)
 		}
 	})
+
+	t.Run("shutdown in progress", func(t *testing.T) {
+		sender := goodMessageSender{}
+		var buf bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&buf, nil))
+		message := tgbotapi.Message{
+			MessageID: 1,
+			Chat:      &tgbotapi.Chat{ID: 1},
+			From:      &tgbotapi.User{ID: 12345, UserName: "arthurmorgan"},
+			Text:      "https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05",
+		}
+		authorizedUsers := []int64{12345}
+		downloadSlots := make(chan struct{}, 1)
+		var downloadsWG sync.WaitGroup
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		handleMessage(ctx, sender, logger, &message, authorizedUsers, downloadSlots, &downloadsWG)
+
+		output := buf.String()
+		assertFieldContains(t, output, "Ignoring request because shutdown is in progress", "log message")
+		assertFieldContains(t, output, "user_id=12345", "user_id")
+		assertFieldContains(t, output, "user_name=arthurmorgan", "user_name")
+	})
 }
-func TestRunTelegramBot_ConsumesUpdatesChannel(t *testing.T) {
+func TestRunTelegramBot(t *testing.T) {
 	t.Run("consumes updates channel", func(t *testing.T) {
 		bot := &tgbotapi.BotAPI{}
 		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -489,10 +526,34 @@ func TestRunTelegramBot_ConsumesUpdatesChannel(t *testing.T) {
 			return updates
 		}
 
-		RunTelegramBot(bot, logger, authorizedUsers, downloadSlots)
+		ctx := context.Background()
+		var downloadsWG sync.WaitGroup
+		RunTelegramBot(ctx, bot, logger, authorizedUsers, downloadSlots, &downloadsWG)
 
 		if gotConfig.Timeout != 60 {
 			t.Fatalf("got timeout %d, want 60", gotConfig.Timeout)
 		}
+	})
+
+	t.Run("stops when context is cancelled", func(t *testing.T) {
+		bot := &tgbotapi.BotAPI{}
+		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+		authorizedUsers := []int64{12345}
+		downloadSlots := make(chan struct{}, 1)
+		var downloadsWG sync.WaitGroup
+
+		updates := make(chan tgbotapi.Update)
+
+		productionGetUpdatesChan := getUpdatesChan
+		defer func() { getUpdatesChan = productionGetUpdatesChan }()
+
+		getUpdatesChan = func(_ *tgbotapi.BotAPI, u tgbotapi.UpdateConfig) tgbotapi.UpdatesChannel {
+			return updates
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		RunTelegramBot(ctx, bot, logger, authorizedUsers, downloadSlots, &downloadsWG)
 	})
 }

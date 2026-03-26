@@ -869,7 +869,7 @@ func TestDownloadRequestDownload(t *testing.T) {
 			defer func() {
 				commandContext = productionCommandContext
 			}()
-			got, err := tc.downloadRequest.Download()
+			got, err := tc.downloadRequest.Download(context.Background())
 			if !tc.wantErr && err != nil {
 				t.Fatalf("got error %q, want nil", err.Error())
 			}
@@ -889,4 +889,32 @@ func TestDownloadRequestDownload(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("canceled context returns command error", func(t *testing.T) {
+		productionCommandContext := commandContext
+		commandContext = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+			return helperCommand(ctx, "success")
+		}
+		defer func() { commandContext = productionCommandContext }()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		got, err := DownloadRequest{
+			startSecond: StartSecond,
+			endSecond:   EndSecond,
+			sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
+			mediaKind:   MediaVideo,
+		}.Download(ctx)
+
+		if err == nil {
+			t.Fatal("got nil error, want error")
+		}
+		if got != "" {
+			t.Fatalf("got %q, want %q", got, "")
+		}
+		if !strings.Contains(err.Error(), "yt-dlp failed") {
+			t.Fatalf("got error %q, want it to contain %q", err.Error(), "yt-dlp failed")
+		}
+	})
 }
