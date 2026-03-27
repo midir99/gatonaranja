@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -70,8 +71,9 @@ func handleDownloadRequest(
 	logger *slog.Logger,
 	message *tgbotapi.Message,
 	mediaDownloader MediaDownloader,
+	downloadTimeout time.Duration,
 ) {
-	mediaFilename, err := mediaDownloader.Download(ctx)
+	mediaFilename, err := mediaDownloader.Download(ctx, downloadTimeout)
 	if err != nil {
 		logger.Error(
 			"Failed to download request",
@@ -130,6 +132,7 @@ var dispatchDownloadRequest = func(
 	bot MessageSender,
 	logger *slog.Logger,
 	message *tgbotapi.Message,
+	downloadTimeout time.Duration,
 	downloadSlots chan struct{},
 	mediaDownloader MediaDownloader,
 	downloadsWG *sync.WaitGroup,
@@ -138,7 +141,7 @@ var dispatchDownloadRequest = func(
 		downloadSlots <- struct{}{}
 		defer func() { <-downloadSlots }()
 
-		handleDownloadRequest(ctx, bot, logger, message, mediaDownloader)
+		handleDownloadRequest(ctx, bot, logger, message, mediaDownloader, downloadTimeout)
 	})
 }
 
@@ -151,6 +154,7 @@ func handleMessage(
 	logger *slog.Logger,
 	message *tgbotapi.Message,
 	authorizedUsers []int64,
+	downloadTimeout time.Duration,
 	downloadSlots chan struct{},
 	downloadsWG *sync.WaitGroup,
 ) {
@@ -200,7 +204,7 @@ func handleMessage(
 
 	// Let the user know you are working on the download
 	sendReply(bot, logger, message, "Wait a minute...")
-	dispatchDownloadRequest(ctx, bot, logger, message, downloadSlots, downloadRequest, downloadsWG)
+	dispatchDownloadRequest(ctx, bot, logger, message, downloadTimeout, downloadSlots, downloadRequest, downloadsWG)
 }
 
 var getUpdatesChan = func(bot *tgbotapi.BotAPI, u tgbotapi.UpdateConfig) tgbotapi.UpdatesChannel {
@@ -215,6 +219,7 @@ func RunTelegramBot(
 	bot *tgbotapi.BotAPI,
 	logger *slog.Logger,
 	authorizedUsers []int64,
+	downloadTimeout time.Duration,
 	downloadSlots chan struct{},
 	downloadsWG *sync.WaitGroup,
 ) {
@@ -231,7 +236,7 @@ func RunTelegramBot(
 			if !ok {
 				return
 			}
-			handleMessage(ctx, bot, logger, update.Message, authorizedUsers, downloadSlots, downloadsWG)
+			handleMessage(ctx, bot, logger, update.Message, authorizedUsers, downloadTimeout, downloadSlots, downloadsWG)
 		}
 	}
 }

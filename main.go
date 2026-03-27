@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"flag"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -34,6 +36,9 @@ func main() {
 	// Parse the flags
 	config, err := ParseConfig(os.Args[1:])
 	if err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			os.Exit(0)
+		}
 		logger.Error("Startup failed: invalid configuration", "error", err)
 		os.Exit(1)
 	}
@@ -51,10 +56,12 @@ func main() {
 	var downloadsWG sync.WaitGroup
 
 	logger.Info("Telegram bot started", "bot_user_id", bot.Self.ID, "bot_user_name", bot.Self.UserName) // #nosec G706
+
 	// Set up a semaphore for limiting the downloads
-	downloadSlots := make(chan struct{}, 5)
-	logger.Info("Starting Telegram update loop", "download_slots", cap(downloadSlots))
-	RunTelegramBot(ctx, bot, logger, config.AuthorizedUsers, downloadSlots, &downloadsWG)
+	downloadSlots := make(chan struct{}, config.MaxConcurrentDownloads)
+	logger.Info("Starting Telegram update loop", "max_concurrent_downloads", cap(downloadSlots))
+	RunTelegramBot(ctx, bot, logger, config.AuthorizedUsers, config.DownloadTimeout, downloadSlots, &downloadsWG)
+
 	logger.Info("Waiting for active downloads to finish")
 	downloadsWG.Wait()
 	logger.Info("Shutdown complete")
