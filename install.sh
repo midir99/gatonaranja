@@ -198,6 +198,7 @@ Description=gatonaranja Telegram bot
 Type=simple
 WorkingDirectory=%h/.local/share/gatonaranja
 EnvironmentFile=%h/.config/gatonaranja/gatonaranja.env
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=%h/.local/bin/gatonaranja
 Restart=on-failure
 RestartSec=5
