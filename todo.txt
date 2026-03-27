@@ -1,8 +1,10 @@
-Make the download slots a flag parameters
-Add a download timeout and add it as a flag parameter
-Add per user limits, for example: user has 20 downloads per day
-If the bot gets so big start using a requestID, not now
-Try to get as much metadata from the video as possible, at least artist name, so when someone downloads audio they can have the artist name
+- Add per user limits, for example: user has 20 downloads per day
+- If the bot gets so big start using a requestID, not now
+- Try to get as much metadata from the video as possible, at least artist name, so when someone downloads audio they can have the artist name
+- Maybe and just maaaaybe support other platforms like instagram :)
+- Make the installer
+- Make the installer install jobs so ffmpeg and yt-dlp are constantly updated
+- Make the serviced file
 
 telegram.go (line 258): the current “goroutine per request + semaphore inside goroutine” pattern keeps the update loop responsive, but it still allows an unbounded number of waiting goroutines if many requests arrive while all 5 slots are busy. That’s fine for a small/private bot, but if usage grows, a bounded worker queue would be safer than unlimited parked goroutines.
 

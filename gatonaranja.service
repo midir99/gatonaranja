@@ -3,10 +3,17 @@ Description=gatonaranja Telegram bot
 
 [Service]
 Type=simple
+WorkingDirectory=%h/.local/share/gatonaranja
 EnvironmentFile=%h/.config/gatonaranja/gatonaranja.env
 ExecStart=%h/.local/bin/gatonaranja
 Restart=on-failure
 RestartSec=5
+TimeoutStopSec=60
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gatonaranja
+NoNewPrivileges=true
+PrivateTmp=true
 
 [Install]
 WantedBy=default.target

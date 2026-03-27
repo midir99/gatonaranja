@@ -47,12 +47,14 @@ Run the bot with:
 ./gatonaranja -telegram-bot-token "<YOUR_TELEGRAM_BOT_TOKEN>"
 ```
 
-Optionally restrict which Telegram users can use the bot:
+Optionally restrict which Telegram users can use the bot and tune download concurrency and timeout:
 
 ```bash
 ./gatonaranja \
   -telegram-bot-token "<YOUR_TELEGRAM_BOT_TOKEN>" \
-  -authorized-users "123456789,987654321"
+  -authorized-users "123456789,987654321" \
+  -max-concurrent-downloads 5 \
+  -download-timeout 5m
 ```
 
 ### Flags
@@ -66,18 +68,33 @@ Optionally restrict which Telegram users can use the bot:
   Defaults to `AUTHORIZED_USERS`.
   If no IDs are specified, everyone can use the bot.
 
+- `-max-concurrent-downloads`
+  Maximum number of downloads that can run at the same time.
+  Defaults to `5`.
+  Can also be set with `MAX_CONCURRENT_DOWNLOADS`.
+
+- `-download-timeout`
+  Maximum time allowed for a single download before it is canceled.
+  Accepts Go duration strings such as `30s`, `2m`, or `5m`.
+  Defaults to `5m`.
+  Can also be set with `DOWNLOAD_TIMEOUT`.
+
 ### Environment Variables
 
 You can provide configuration through environment variables instead of flags:
 
 - `TELEGRAM_BOT_TOKEN`
 - `AUTHORIZED_USERS`
+- `MAX_CONCURRENT_DOWNLOADS`
+- `DOWNLOAD_TIMEOUT`
 
 Example:
 
 ```bash
 export TELEGRAM_BOT_TOKEN="<YOUR_TELEGRAM_BOT_TOKEN>"
 export AUTHORIZED_USERS="123456789,987654321"
+export MAX_CONCURRENT_DOWNLOADS="5"
+export DOWNLOAD_TIMEOUT="5m"
 
 ./gatonaranja
 ```
@@ -190,6 +207,14 @@ make fmt
 make lint
 make test
 ```
+
+## Acknowledgements
+
+Special thanks to the developers and maintainers of:
+
+- Telegram
+- yt-dlp
+- ffmpeg
 
 ## License
 

@@ -10,23 +10,25 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-const usageMessage = `I couldn't understand your request, but I can help you download YouTube videos.
+const usageMessage = `I couldn't understand your request 😿
 
-Try one of these examples:
+Only send the YouTube link, optionally followed by a time range and/or the word audio.
 
-Download a video
+Send me a message like one of these examples.
+
+Example: download a video
 https://www.youtube.com/watch?v=AqjB8DGt85U
 
-Download a video clip
+Example: download a video clip
 https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05
 
-Download audio only
+Example: download audio only
 https://www.youtube.com/watch?v=AqjB8DGt85U audio
 
-Download an audio clip
+Example: download an audio clip
 https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05 audio
 
-You can also use start or end:
+You can also use start or end in the time range:
 https://www.youtube.com/watch?v=AqjB8DGt85U start-0:10
 https://www.youtube.com/watch?v=AqjB8DGt85U 0:10-end`
 
@@ -82,7 +84,7 @@ func handleDownloadRequest(
 			"message_text", message.Text,
 			"error", err,
 		)
-		sendReply(bot, logger, message, "I could not download your video :(")
+		sendReply(bot, logger, message, "I could not download your video 😿")
 		return
 	}
 
@@ -113,7 +115,7 @@ func handleDownloadRequest(
 			"message_text", message.Text,
 			"error", err,
 		)
-		sendReply(bot, logger, message, "I downloaded it, but I couldn't send it to you.")
+		sendReply(bot, logger, message, "I downloaded it, but I couldn't send it to you 🙀")
 	}
 	err = removeFile(mediaFilename)
 	if err != nil {
@@ -179,7 +181,7 @@ func handleMessage(
 			"user_name", message.From.UserName,
 			"message_text", message.Text,
 		) // #nosec G706
-		sendReply(bot, logger, message, "You are not authorized to use this bot")
+		sendReply(bot, logger, message, "You are not authorized to use this bot 😾")
 		return
 	}
 	logger.Info(
@@ -203,7 +205,7 @@ func handleMessage(
 	}
 
 	// Let the user know you are working on the download
-	sendReply(bot, logger, message, "Wait a minute...")
+	sendReply(bot, logger, message, "Wait a minute ⏳")
 	dispatchDownloadRequest(ctx, bot, logger, message, downloadTimeout, downloadSlots, downloadRequest, downloadsWG)
 }
 

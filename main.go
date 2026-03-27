@@ -59,7 +59,7 @@ func main() {
 
 	// Set up a semaphore for limiting the downloads
 	downloadSlots := make(chan struct{}, config.MaxConcurrentDownloads)
-	logger.Info("Starting Telegram update loop", "max_concurrent_downloads", cap(downloadSlots))
+	logger.Info("Starting Telegram update loop", "max_concurrent_downloads", cap(downloadSlots), "download_timeout_seconds", config.DownloadTimeout.Seconds())
 	RunTelegramBot(ctx, bot, logger, config.AuthorizedUsers, config.DownloadTimeout, downloadSlots, &downloadsWG)
 
 	logger.Info("Waiting for active downloads to finish")

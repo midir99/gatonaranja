@@ -16,5 +16,20 @@ indent_size = 4
 [*.md]
 indent_size = 4
 trim_trailing_whitespace = false
-
 eclint_indent_style = unset
+
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.service]
+indent_style = space
+indent_size = 2
+
+[*.sh]
+indent_style = space
+indent_size = 4
+
+[*.txt]
+indent_style = space
+indent_size = 2
