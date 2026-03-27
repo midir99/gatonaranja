@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"testing"
+	"time"
 )
 
 func compareInt64Array(t *testing.T, got, want []int64) {
@@ -58,7 +59,7 @@ func TestValidateAuthorizedUsers(t *testing.T) {
 			"invalid values 2",
 			"1111111111, 1111 111111 ,1111111113",
 			nil,
-			errors.New(`invalid authorized user ID "1111 111111": must be a valid Telegram user ID`),
+			errors.New(`invalid authorized user ID " 1111 111111 ": must be a valid Telegram user ID`),
 		},
 		{
 			"only spaces",
@@ -165,6 +166,195 @@ func TestValidateTelegramBotToken(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateMaxConcurrentDownloads(t *testing.T) {
+	testCases := []struct {
+		testName               string
+		maxConcurrentDownloads string
+		want                   int
+		err                    error
+	}{
+		{
+			"1 concurrent download",
+			"1",
+			1,
+			nil,
+		},
+		{
+			"6 concurrent downloads",
+			"6",
+			6,
+			nil,
+		},
+		{
+			"100 concurrent downloads",
+			"100",
+			100,
+			nil,
+		},
+		{
+			"value with surrounding spaces",
+			"   8   ",
+			8,
+			nil,
+		},
+		{
+			"zero concurrent downloads",
+			"0",
+			0,
+			errors.New(`invalid max concurrent downloads "0": must be between 1 and 100`),
+		},
+		{
+			"negative concurrent downloads",
+			"-5",
+			0,
+			errors.New(`invalid max concurrent downloads "-5": must be between 1 and 100`),
+		},
+		{
+			"more than maximum concurrent downloads",
+			"101",
+			0,
+			errors.New(`invalid max concurrent downloads "101": must be between 1 and 100`),
+		},
+		{
+			"empty value",
+			"",
+			0,
+			errors.New(`invalid max concurrent downloads "": must be between 1 and 100`),
+		},
+		{
+			"only spaces",
+			"   \t\n  ",
+			0,
+			errors.New("invalid max concurrent downloads \"   \\t\\n  \": must be between 1 and 100"),
+		},
+		{
+			"non numeric value",
+			"abc",
+			0,
+			errors.New(`invalid max concurrent downloads "abc": must be between 1 and 100`),
+		},
+		{
+			"decimal value",
+			"1.5",
+			0,
+			errors.New(`invalid max concurrent downloads "1.5": must be between 1 and 100`),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			maxConcurrentDownloads, err := validateMaxConcurrentDownloads(tc.maxConcurrentDownloads)
+			if tc.err != nil && err == nil {
+				t.Fatalf("got nil, want %q", tc.err.Error())
+			}
+			if tc.err != nil && err != nil && tc.err.Error() != err.Error() {
+				t.Fatalf("got %q, want %q", err.Error(), tc.err.Error())
+			}
+			if maxConcurrentDownloads != tc.want {
+				t.Fatalf("got %d, want %d", maxConcurrentDownloads, tc.want)
+			}
+		})
+	}
+}
+
+func TestValidateDownloadTimeout(t *testing.T) {
+	testCases := []struct {
+		testName        string
+		downloadTimeout string
+		want            time.Duration
+		err             error
+	}{
+		{
+			"ten seconds",
+			"10s",
+			10 * time.Second,
+			nil,
+		},
+		{
+			"1 second timeout",
+			"1s",
+			time.Second,
+			nil,
+		},
+		{
+			"10 seconds timeout",
+			"10s",
+			10 * time.Second,
+			nil,
+		},
+		{
+			"5 minutes timeout",
+			"5m",
+			5 * time.Minute,
+			nil,
+		},
+		{
+			"10 minutes timeout",
+			"10m",
+			10 * time.Minute,
+			nil,
+		},
+		{
+			"timeout with surrounding spaces",
+			"   30s   ",
+			30 * time.Second,
+			nil,
+		},
+		{
+			"zero timeout",
+			"0s",
+			0,
+			errors.New(`invalid download timeout "0s": must be between 1s and 10m, for example 30s, 2m, or 5m`),
+		},
+		{
+			"negative timeout",
+			"-5s",
+			0,
+			errors.New(`invalid download timeout "-5s": must be between 1s and 10m, for example 30s, 2m, or 5m`),
+		},
+		{
+			"more than maximum timeout",
+			"11m",
+			0,
+			errors.New(`invalid download timeout "11m": must be between 1s and 10m, for example 30s, 2m, or 5m`),
+		},
+		{
+			"empty timeout",
+			"",
+			0,
+			errors.New(`invalid download timeout "": must be between 1s and 10m, for example 30s, 2m, or 5m`),
+		},
+		{
+			"only spaces timeout",
+			"   \t\n  ",
+			0,
+			errors.New(`invalid download timeout "   \t\n  ": must be between 1s and 10m, for example 30s, 2m, or 5m`),
+		},
+		{
+			"invalid unit",
+			"5x",
+			0,
+			errors.New(`invalid download timeout "5x": must be between 1s and 10m, for example 30s, 2m, or 5m`),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			downloadTimeout, err := validateDownloadTimeout(tc.downloadTimeout)
+			if tc.err != nil && err == nil {
+				t.Fatalf("got nil, want %q", tc.err.Error())
+			}
+			if tc.err != nil && err != nil && tc.err.Error() != err.Error() {
+				t.Fatalf("got %q, want %q", err.Error(), tc.err.Error())
+			}
+			if downloadTimeout != tc.want {
+				t.Fatalf("got %d, want %d", downloadTimeout, tc.want)
+			}
+		})
+	}
+}
+
 func TestFlagOrEnv(t *testing.T) {
 	testCases := []struct {
 		testName          string
@@ -250,8 +440,10 @@ func TestParseConfig(t *testing.T) {
 			"happy path",
 			[]string{"-authorized-users", "1111111111", "-telegram-bot-token", "thisisavalidtelegrambottoken"},
 			Config{
-				[]int64{1111111111},
-				"thisisavalidtelegrambottoken",
+				AuthorizedUsers:        []int64{1111111111},
+				TelegramBotToken:       "thisisavalidtelegrambottoken",
+				MaxConcurrentDownloads: 5,
+				DownloadTimeout:        5 * time.Minute,
 			},
 			nil,
 		},
@@ -264,8 +456,10 @@ func TestParseConfig(t *testing.T) {
 				"thisisavalidtelegrambottoken",
 			},
 			Config{
-				[]int64{1111111111, 1111111112},
-				"thisisavalidtelegrambottoken",
+				AuthorizedUsers:        []int64{1111111111, 1111111112},
+				TelegramBotToken:       "thisisavalidtelegrambottoken",
+				MaxConcurrentDownloads: 5,
+				DownloadTimeout:        5 * time.Minute,
 			},
 			nil,
 		},
@@ -278,8 +472,10 @@ func TestParseConfig(t *testing.T) {
 				"thisisavalidtelegrambottoken",
 			},
 			Config{
-				[]int64{1111111111, 1111111112, 1111111113},
-				"thisisavalidtelegrambottoken",
+				AuthorizedUsers:        []int64{1111111111, 1111111112, 1111111113},
+				TelegramBotToken:       "thisisavalidtelegrambottoken",
+				MaxConcurrentDownloads: 5,
+				DownloadTimeout:        5 * time.Minute,
 			},
 			nil,
 		},
@@ -287,8 +483,10 @@ func TestParseConfig(t *testing.T) {
 			"empty authorized users",
 			[]string{"-authorized-users", "", "-telegram-bot-token", "thisisavalidtelegrambottoken"},
 			Config{
-				[]int64{},
-				"thisisavalidtelegrambottoken",
+				AuthorizedUsers:        []int64{},
+				TelegramBotToken:       "thisisavalidtelegrambottoken",
+				MaxConcurrentDownloads: 5,
+				DownloadTimeout:        5 * time.Minute,
 			},
 			nil,
 		},
@@ -296,64 +494,218 @@ func TestParseConfig(t *testing.T) {
 			"no authorized users",
 			[]string{"-telegram-bot-token", "thisisavalidtelegrambottoken"},
 			Config{
-				[]int64{},
+				AuthorizedUsers:        []int64{},
+				TelegramBotToken:       "thisisavalidtelegrambottoken",
+				MaxConcurrentDownloads: 5,
+				DownloadTimeout:        5 * time.Minute,
+			},
+			nil,
+		},
+		{
+			"custom max concurrent downloads",
+			[]string{
+				"-telegram-bot-token",
 				"thisisavalidtelegrambottoken",
+				"-max-concurrent-downloads",
+				"8",
+			},
+			Config{
+				AuthorizedUsers:        []int64{},
+				TelegramBotToken:       "thisisavalidtelegrambottoken",
+				MaxConcurrentDownloads: 8,
+				DownloadTimeout:        5 * time.Minute,
+			},
+			nil,
+		},
+		{
+			"custom download timeout",
+			[]string{
+				"-telegram-bot-token",
+				"thisisavalidtelegrambottoken",
+				"-download-timeout",
+				"2m",
+			},
+			Config{
+				AuthorizedUsers:        []int64{},
+				TelegramBotToken:       "thisisavalidtelegrambottoken",
+				MaxConcurrentDownloads: 5,
+				DownloadTimeout:        2 * time.Minute,
+			},
+			nil,
+		},
+		{
+			"custom max concurrent downloads and timeout",
+			[]string{
+				"-telegram-bot-token",
+				"thisisavalidtelegrambottoken",
+				"-max-concurrent-downloads",
+				"9",
+				"-download-timeout",
+				"30s",
+			},
+			Config{
+				AuthorizedUsers:        []int64{},
+				TelegramBotToken:       "thisisavalidtelegrambottoken",
+				MaxConcurrentDownloads: 9,
+				DownloadTimeout:        30 * time.Second,
+			},
+			nil,
+		},
+		{
+			"minimum max concurrent downloads",
+			[]string{
+				"-telegram-bot-token",
+				"thisisavalidtelegrambottoken",
+				"-max-concurrent-downloads",
+				"1",
+			},
+			Config{
+				AuthorizedUsers:        []int64{},
+				TelegramBotToken:       "thisisavalidtelegrambottoken",
+				MaxConcurrentDownloads: 1,
+				DownloadTimeout:        5 * time.Minute,
+			},
+			nil,
+		},
+		{
+			"maximum max concurrent downloads",
+			[]string{
+				"-telegram-bot-token",
+				"thisisavalidtelegrambottoken",
+				"-max-concurrent-downloads",
+				"100",
+			},
+			Config{
+				AuthorizedUsers:        []int64{},
+				TelegramBotToken:       "thisisavalidtelegrambottoken",
+				MaxConcurrentDownloads: 100,
+				DownloadTimeout:        5 * time.Minute,
+			},
+			nil,
+		},
+		{
+			"minimum download timeout",
+			[]string{
+				"-telegram-bot-token",
+				"thisisavalidtelegrambottoken",
+				"-download-timeout",
+				"1s",
+			},
+			Config{
+				AuthorizedUsers:        []int64{},
+				TelegramBotToken:       "thisisavalidtelegrambottoken",
+				MaxConcurrentDownloads: 5,
+				DownloadTimeout:        1 * time.Second,
+			},
+			nil,
+		},
+		{
+			"maximum download timeout",
+			[]string{
+				"-telegram-bot-token",
+				"thisisavalidtelegrambottoken",
+				"-download-timeout",
+				"10m",
+			},
+			Config{
+				AuthorizedUsers:        []int64{},
+				TelegramBotToken:       "thisisavalidtelegrambottoken",
+				MaxConcurrentDownloads: 5,
+				DownloadTimeout:        10 * time.Minute,
 			},
 			nil,
 		},
 		{
 			"invalid authorized users",
 			[]string{"-authorized-users", "teamoabuelita", "-telegram-bot-token", "thisisavalidtelegrambottoken"},
-			Config{
-				[]int64{},
-				"",
-			},
+			Config{},
 			errors.New(`invalid authorized user ID "teamoabuelita": must be a valid Telegram user ID`),
 		},
 		{
 			"empty telegram bot token",
 			[]string{"-authorized-users", "1111111111", "-telegram-bot-token", ""},
-			Config{
-				[]int64{},
-				"",
-			},
+			Config{},
 			errors.New("telegram bot token is required: use -telegram-bot-token or TELEGRAM_BOT_TOKEN"),
 		},
 		{
 			"no telegram bot token",
 			[]string{"-authorized-users", "1111111111"},
-			Config{
-				[]int64{},
-				"",
-			},
+			Config{},
 			errors.New("telegram bot token is required: use -telegram-bot-token or TELEGRAM_BOT_TOKEN"),
+		},
+		{
+			"invalid max concurrent downloads",
+			[]string{
+				"-telegram-bot-token",
+				"thisisavalidtelegrambottoken",
+				"-max-concurrent-downloads",
+				"101",
+			},
+			Config{},
+			errors.New(`invalid max concurrent downloads "101": must be between 1 and 100`),
+		},
+		{
+			"zero max concurrent downloads",
+			[]string{
+				"-telegram-bot-token",
+				"thisisavalidtelegrambottoken",
+				"-max-concurrent-downloads",
+				"0",
+			},
+			Config{},
+			errors.New(`invalid max concurrent downloads "0": must be between 1 and 100`),
+		},
+		{
+			"invalid download timeout",
+			[]string{
+				"-telegram-bot-token",
+				"thisisavalidtelegrambottoken",
+				"-download-timeout",
+				"11m",
+			},
+			Config{},
+			errors.New(`invalid download timeout "11m": must be between 1s and 10m, for example 30s, 2m, or 5m`),
+		},
+		{
+			"zero download timeout",
+			[]string{
+				"-telegram-bot-token",
+				"thisisavalidtelegrambottoken",
+				"-download-timeout",
+				"0s",
+			},
+			Config{},
+			errors.New(`invalid download timeout "0s": must be between 1s and 10m, for example 30s, 2m, or 5m`),
 		},
 		{
 			"no args",
 			[]string{},
-			Config{
-				[]int64{},
-				"",
-			},
+			Config{},
 			errors.New("telegram bot token is required: use -telegram-bot-token or TELEGRAM_BOT_TOKEN"),
 		},
 		{
 			"invalid args",
 			[]string{"-does-not-exist"},
-			Config{
-				[]int64{},
-				"",
-			},
+			Config{},
 			errors.New("flag provided but not defined: -does-not-exist"),
 		},
 		{
-			"invalid flag missing value",
+			"invalid flag missing token value",
 			[]string{"-telegram-bot-token"},
-			Config{
-				[]int64{},
-				"",
-			},
+			Config{},
 			errors.New("flag needs an argument: -telegram-bot-token"),
+		},
+		{
+			"invalid flag missing max concurrent downloads value",
+			[]string{"-telegram-bot-token", "thisisavalidtelegrambottoken", "-max-concurrent-downloads"},
+			Config{},
+			errors.New("flag needs an argument: -max-concurrent-downloads"),
+		},
+		{
+			"invalid flag missing download timeout value",
+			[]string{"-telegram-bot-token", "thisisavalidtelegrambottoken", "-download-timeout"},
+			Config{},
+			errors.New("flag needs an argument: -download-timeout"),
 		},
 	}
 
@@ -369,6 +721,12 @@ func TestParseConfig(t *testing.T) {
 			compareInt64Array(t, config.AuthorizedUsers, tc.want.AuthorizedUsers)
 			if config.TelegramBotToken != tc.want.TelegramBotToken {
 				t.Fatalf("got %q, want %q", config.TelegramBotToken, tc.want.TelegramBotToken)
+			}
+			if config.MaxConcurrentDownloads != tc.want.MaxConcurrentDownloads {
+				t.Fatalf("got %d, want %d", config.MaxConcurrentDownloads, tc.want.MaxConcurrentDownloads)
+			}
+			if config.DownloadTimeout != tc.want.DownloadTimeout {
+				t.Fatalf("got %q, want %q", config.DownloadTimeout, tc.want.DownloadTimeout)
 			}
 		})
 	}
