@@ -39,6 +39,72 @@ You can also build it directly with Go:
 go build -o gatonaranja
 ```
 
+### Install From GitHub Releases
+
+You can install `gatonaranja` as a user-scoped service with the provided
+installer script:
+
+```bash
+chmod +x install.sh
+./install.sh
+```
+
+This installs:
+
+- `~/.local/bin/gatonaranja`
+- `~/.local/share/gatonaranja`
+- `~/.config/gatonaranja/gatonaranja.env`
+- `~/.config/systemd/user/gatonaranja.service`
+
+By default, the installer also enables and starts the user service.
+
+You can install a specific release tag with:
+
+```bash
+./install.sh --version vX.Y.Z
+```
+
+Or install without enabling the service yet:
+
+```bash
+./install.sh --skip-enable
+```
+
+After installation, edit:
+
+```bash
+~/.config/gatonaranja/gatonaranja.env
+```
+
+and set at least:
+
+```bash
+TELEGRAM_BOT_TOKEN=...
+```
+
+Then restart the service:
+
+```bash
+systemctl --user restart gatonaranja
+```
+
+### Uninstall
+
+To uninstall the binary and user service:
+
+```bash
+chmod +x uninstall.sh
+./uninstall.sh
+```
+
+By default, the uninstall script keeps your working directory and config file.
+
+If you also want to remove downloaded files and configuration:
+
+```bash
+./uninstall.sh --remove-data --remove-config
+```
+
 ## Usage
 
 Run the bot with:
