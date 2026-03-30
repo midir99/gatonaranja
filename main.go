@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 )
 
 // newLogger creates the application logger used by the bot.
@@ -20,57 +22,83 @@ func newLogger() *slog.Logger {
 	)
 }
 
-// main initializes the bot and starts the Telegram update loop.
-func main() {
-	var logger = newLogger()
-
+func run(logger *slog.Logger) error {
 	// Check system has required dependencies
 	err := ValidateRequiredDependencies()
 	if err != nil {
-		logger.Error("Startup failed while checking dependencies", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("startup failed while checking dependencies: %w", err)
 	}
 
 	// Parse the flags
 	config, err := ParseConfig(os.Args[1:])
 	if err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			os.Exit(0)
-		}
-		logger.Error("Startup failed: invalid configuration", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("startup failed: invalid configuration: %w", err)
 	}
+
+	// Set up graceful shutdown
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	// Bootstrap the bot
 	bot, err := NewTelegramAPIClient(config.TelegramBotToken, nil)
 	if err != nil {
-		logger.Error("Startup failed: unable to create Telegram bot", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("startup failed: unable to create Telegram bot: %w", err)
 	}
-	ctx := context.Background()
-	botUser, err := bot.GetMe(ctx)
+
+	getMeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	botUser, err := bot.GetMe(getMeCtx)
 	if err != nil {
-		logger.Error("GetMe failed")
-		os.Exit(1)
+		return fmt.Errorf("startup failed: GetMe failed: %w", err)
 	}
 	logger.Info("Telegram bot started", "bot_user_id", botUser.ID, "bot_user_name", botUser.UserName) // #nosec G706
 
-	// Set up graceful shutdown
-	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	var downloadsWG sync.WaitGroup
 
 	// Set up a semaphore for limiting the downloads
 	downloadSlots := make(chan struct{}, config.MaxConcurrentDownloads)
-	logger.Info("Starting Telegram update loop", "max_concurrent_downloads", cap(downloadSlots), "download_timeout_seconds", config.DownloadTimeout.Seconds())
+	logger.Info(
+		"Starting Telegram update loop",
+		"max_concurrent_downloads",
+		cap(downloadSlots),
+		"download_timeout_seconds",
+		config.DownloadTimeout.Seconds(),
+	)
 
-	downloadRequestHandler := DownloadRequestHandler{
-		bot, logger, config.AuthorizedUsers, config.DownloadTimeout, downloadSlots, &downloadsWG,
+	downloadRequestHandler, err := NewDownloadRequestHandler(
+		bot,
+		logger,
+		config.AuthorizedUsers,
+		config.DownloadTimeout,
+		downloadSlots,
+		&downloadsWG,
+	)
+	if err != nil {
+		return fmt.Errorf("startup failed: unable to create download request handler: %w", err)
 	}
 
-	RunTelegramBot(ctx, bot, logger, downloadRequestHandler.HandleUpdate)
+	if err := RunTelegramBot(ctx, bot, logger, downloadRequestHandler.HandleUpdate); err != nil {
+		return fmt.Errorf("telegram update loop failed: %w", err)
+	}
 
 	logger.Info("Waiting for active downloads to finish")
 	downloadsWG.Wait()
 	logger.Info("Shutdown complete")
+	return nil
+}
+
+// main initializes the bot and starts the Telegram update loop.
+func main() {
+	logger := newLogger()
+
+	err := run(logger)
+	if err == nil {
+		return
+	}
+	if errors.Is(err, flag.ErrHelp) {
+		os.Exit(0)
+	}
+	logger.Error("Application failed", "error", err)
+	os.Exit(1)
 }
