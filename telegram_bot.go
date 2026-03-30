@@ -106,7 +106,7 @@ func (h *DownloadRequestHandler) HandleUpdate(ctx context.Context, update Telegr
 			"user_name", update.Message.From.UserName,
 			"message_text", update.Message.Text,
 		)
-		_ = sendReply(ctx, h.client, h.logger, update.Message, "You are not authorized to use this bot 😾")
+		sendReply(ctx, h.client, h.logger, update.Message, "You are not authorized to use this bot 😾")
 		return nil
 	}
 	h.logger.Info(
@@ -124,11 +124,11 @@ func (h *DownloadRequestHandler) HandleUpdate(ctx context.Context, update Telegr
 			"message_text", update.Message.Text,
 			"error", err,
 		) // #nosec G706
-		_ = sendReply(ctx, h.client, h.logger, update.Message, usageMessage)
+		sendReply(ctx, h.client, h.logger, update.Message, usageMessage)
 		return nil
 	}
 	// Let the user know you are working on the download
-	_ = sendReply(ctx, h.client, h.logger, update.Message, "Wait a minute ⏳")
+	sendReply(ctx, h.client, h.logger, update.Message, "Wait a minute ⏳")
 	dispatchDownloadRequest(
 		ctx,
 		h.client,
@@ -188,7 +188,7 @@ func handleDownloadRequest(
 			"message_text", message.Text,
 			"error", err,
 		)
-		_ = sendReply(ctx, client, logger, message, "I could not download your request 😿")
+		sendReply(ctx, client, logger, message, "I could not download your request 😿")
 		return
 	}
 
@@ -216,9 +216,9 @@ func handleDownloadRequest(
 			"error", err,
 		)
 		if errors.Is(err, ErrTelegramMediaTooLarge) {
-			_ = sendReply(ctx, client, logger, message, "I downloaded it, but the file is too big for me to send on Telegram 😿")
+			sendReply(ctx, client, logger, message, "I downloaded it, but the file is too big for me to send on Telegram 😿")
 		} else {
-			_ = sendReply(ctx, client, logger, message, "I downloaded it, but I couldn't send it to you 🙀")
+			sendReply(ctx, client, logger, message, "I downloaded it, but I couldn't send it to you 🙀")
 		}
 	}
 	err = removeFile(mediaFilename)
@@ -249,12 +249,11 @@ func sendReply(
 	logger *slog.Logger,
 	message *TelegramAPIMessage,
 	text string,
-) error {
+) {
 	_, err := bot.SendText(ctx, message.Chat.ID, message.MessageID, text)
 	if err != nil {
 		logTelegramSendError(logger, message.From.UserName, message.From.ID, err)
 	}
-	return err
 }
 
 // RunTelegramBot receives Telegram updates using long polling and calls
