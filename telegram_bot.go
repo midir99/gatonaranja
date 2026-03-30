@@ -12,23 +12,23 @@ import (
 
 const usageMessage = `I couldn't understand your request 😿
 
-Only send the YouTube link, optionally followed by a time range and/or the word audio.
+Send only the YouTube link, optionally followed by:
+- a time range written with no spaces around the dash
+- the word audio at the end
 
-Send me a message like one of these examples.
+Do not write the time range like "1:00 - 1:05".
 
-Example: download a video
+Send a message exactly like one of these examples:
+
 https://www.youtube.com/watch?v=AqjB8DGt85U
 
-Example: download a video clip
 https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05
 
-Example: download audio only
 https://www.youtube.com/watch?v=AqjB8DGt85U audio
 
-Example: download an audio clip
 https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05 audio
 
-You can also use start or end in the time range:
+You can also use start or end:
 https://www.youtube.com/watch?v=AqjB8DGt85U start-0:10
 https://www.youtube.com/watch?v=AqjB8DGt85U 0:10-end`
 
@@ -215,7 +215,11 @@ func handleDownloadRequest(
 			"message_text", message.Text,
 			"error", err,
 		)
-		_ = sendReply(ctx, client, logger, message, "I downloaded it, but I couldn't send it to you 🙀")
+		if errors.Is(err, ErrTelegramMediaTooLarge) {
+			_ = sendReply(ctx, client, logger, message, "I downloaded it, but the file is too big for me to send on Telegram 😿")
+		} else {
+			_ = sendReply(ctx, client, logger, message, "I downloaded it, but I couldn't send it to you 🙀")
+		}
 	}
 	err = removeFile(mediaFilename)
 	if err != nil {

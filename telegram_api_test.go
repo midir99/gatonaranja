@@ -352,6 +352,37 @@ func TestTelegramAPIClientSendMediaRequiresFilePath(t *testing.T) {
 	}
 }
 
+func TestTelegramAPIClientSendMediaRejectsFilesLargerThanTelegramLimit(t *testing.T) {
+	videoPath := filepath.Join(t.TempDir(), "too-large.mp4")
+
+	file, err := os.Create(videoPath)
+	if err != nil {
+		t.Fatalf("Create() error = %v, want nil", err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatalf("Close() error = %v, want nil", err)
+	}
+	if err := os.Truncate(videoPath, telegramBotMaxUploadSizeBytes+1); err != nil {
+		t.Fatalf("Truncate() error = %v, want nil", err)
+	}
+
+	client := newTelegramAPIClientForTest(t, func(req *http.Request) (*http.Response, error) {
+		t.Fatalf("unexpected HTTP request: %s %s", req.Method, req.URL.String())
+		return nil, nil
+	})
+
+	_, err = client.SendVideo(context.Background(), 1, 2, videoPath)
+	if err == nil {
+		t.Fatal("SendVideo() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), `video file "`) {
+		t.Fatalf("SendVideo() error = %q, want it to mention the video file", err.Error())
+	}
+	if !strings.Contains(err.Error(), "50 MB") {
+		t.Fatalf("SendVideo() error = %q, want it to mention the 50 MB limit", err.Error())
+	}
+}
+
 func TestTelegramAPIClientReturnsTelegramAPIError(t *testing.T) {
 	client := newTelegramAPIClientForTest(t, func(req *http.Request) (*http.Response, error) {
 		return newHTTPResponse(http.StatusOK, `{

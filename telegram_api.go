@@ -18,6 +18,10 @@ import (
 
 const telegramAPIBaseURL = "https://api.telegram.org"
 
+const telegramBotMaxUploadSizeBytes = 50 * 1024 * 1024
+
+var ErrTelegramMediaTooLarge = errors.New("telegram media file is too large")
+
 // TelegramAPIClient is a small stdlib-only client for the Telegram Bot API.
 type TelegramAPIClient struct {
 	baseURL    string
@@ -211,6 +215,21 @@ func (c *TelegramAPIClient) sendMedia(
 		return fmt.Errorf("open %s file %q: %w", fieldName, filePath, err)
 	}
 	defer file.Close()
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("stat %s file %q: %w", fieldName, filePath, err)
+	}
+	if fileInfo.Size() > telegramBotMaxUploadSizeBytes {
+		return fmt.Errorf(
+			"%w: %s file %q is too large: %d bytes; Telegram Bot API currently supports files up to %d bytes (50 MB)",
+			ErrTelegramMediaTooLarge,
+			fieldName,
+			filePath,
+			fileInfo.Size(),
+			telegramBotMaxUploadSizeBytes,
+		)
+	}
 
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
