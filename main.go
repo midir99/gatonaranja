@@ -9,8 +9,6 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // newLogger creates the application logger used by the bot.
@@ -44,23 +42,33 @@ func main() {
 	}
 
 	// Bootstrap the bot
-	bot, err := tgbotapi.NewBotAPI(config.TelegramBotToken)
+	bot, err := NewTelegramAPIClient(config.TelegramBotToken, nil)
 	if err != nil {
 		logger.Error("Startup failed: unable to create Telegram bot", "error", err)
 		os.Exit(1)
 	}
+	ctx := context.Background()
+	botUser, err := bot.GetMe(ctx)
+	if err != nil {
+		logger.Error("GetMe failed")
+		os.Exit(1)
+	}
+	logger.Info("Telegram bot started", "bot_user_id", botUser.ID, "bot_user_name", botUser.UserName) // #nosec G706
 
 	// Set up graceful shutdown
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	var downloadsWG sync.WaitGroup
-
-	logger.Info("Telegram bot started", "bot_user_id", bot.Self.ID, "bot_user_name", bot.Self.UserName) // #nosec G706
 
 	// Set up a semaphore for limiting the downloads
 	downloadSlots := make(chan struct{}, config.MaxConcurrentDownloads)
 	logger.Info("Starting Telegram update loop", "max_concurrent_downloads", cap(downloadSlots), "download_timeout_seconds", config.DownloadTimeout.Seconds())
-	RunTelegramBot(ctx, bot, logger, config.AuthorizedUsers, config.DownloadTimeout, downloadSlots, &downloadsWG)
+
+	downloadRequestHandler := DownloadRequestHandler{
+		bot, logger, config.AuthorizedUsers, config.DownloadTimeout, downloadSlots, &downloadsWG,
+	}
+
+	RunTelegramBot(ctx, bot, logger, downloadRequestHandler.HandleUpdate)
 
 	logger.Info("Waiting for active downloads to finish")
 	downloadsWG.Wait()
