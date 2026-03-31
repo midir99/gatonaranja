@@ -214,13 +214,14 @@ func (c *TelegramAPIClient) sendMedia(
 	if err != nil {
 		return fmt.Errorf("open %s file %q: %w", fieldName, filePath, err)
 	}
-	defer file.Close()
 
 	fileInfo, err := file.Stat()
 	if err != nil {
+		_ = file.Close()
 		return fmt.Errorf("stat %s file %q: %w", fieldName, filePath, err)
 	}
 	if fileInfo.Size() > telegramBotMaxUploadSizeBytes {
+		_ = file.Close()
 		return fmt.Errorf(
 			"%w: %s file %q is too large: %d bytes; Telegram Bot API currently supports files up to %d bytes (50 MB)",
 			ErrTelegramMediaTooLarge,
@@ -231,37 +232,84 @@ func (c *TelegramAPIClient) sendMedia(
 		)
 	}
 
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
+	bodyReader, contentType, uploadErrCh := streamTelegramMediaBody(
+		file,
+		fieldName,
+		filePath,
+		chatID,
+		replyToMessageID,
+	)
 
-	if err := writer.WriteField("chat_id", strconv.FormatInt(chatID, 10)); err != nil {
-		return fmt.Errorf("write Telegram multipart field chat_id: %w", err)
-	}
-	if replyToMessageID > 0 {
-		if err := writer.WriteField("reply_to_message_id", strconv.FormatInt(replyToMessageID, 10)); err != nil {
-			return fmt.Errorf("write Telegram multipart field reply_to_message_id: %w", err)
-		}
-	}
-
-	part, err := writer.CreateFormFile(fieldName, filepath.Base(filePath))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.methodURL(method), bodyReader)
 	if err != nil {
-		return fmt.Errorf("create Telegram multipart file field %s: %w", fieldName, err)
-	}
-	if _, err := io.Copy(part, file); err != nil {
-		return fmt.Errorf("copy %s file %q into request: %w", fieldName, filePath, err)
-	}
-
-	if err := writer.Close(); err != nil {
-		return fmt.Errorf("finalize Telegram multipart request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.methodURL(method), &body)
-	if err != nil {
+		_ = bodyReader.Close()
 		return fmt.Errorf("build Telegram request: %w", err)
 	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Content-Type", contentType)
 
-	return c.do(req, result)
+	err = c.do(req, result)
+	uploadErr := <-uploadErrCh
+	if err != nil {
+		if uploadErr != nil && !errors.Is(uploadErr, io.ErrClosedPipe) {
+			return uploadErr
+		}
+		return err
+	}
+	if uploadErr != nil {
+		return uploadErr
+	}
+	return nil
+}
+
+func streamTelegramMediaBody(
+	file *os.File,
+	fieldName string,
+	filePath string,
+	chatID int64,
+	replyToMessageID int64,
+) (*io.PipeReader, string, <-chan error) {
+	bodyReader, bodyWriter := io.Pipe()
+	writer := multipart.NewWriter(bodyWriter)
+	uploadErrCh := make(chan error, 1)
+
+	go func() {
+		defer close(uploadErrCh)
+		defer file.Close()
+
+		fail := func(err error) {
+			uploadErrCh <- err
+			_ = bodyWriter.CloseWithError(err)
+		}
+
+		if err := writer.WriteField("chat_id", strconv.FormatInt(chatID, 10)); err != nil {
+			fail(fmt.Errorf("write Telegram multipart field chat_id: %w", err))
+			return
+		}
+		if replyToMessageID > 0 {
+			if err := writer.WriteField("reply_to_message_id", strconv.FormatInt(replyToMessageID, 10)); err != nil {
+				fail(fmt.Errorf("write Telegram multipart field reply_to_message_id: %w", err))
+				return
+			}
+		}
+
+		part, err := writer.CreateFormFile(fieldName, filepath.Base(filePath))
+		if err != nil {
+			fail(fmt.Errorf("create Telegram multipart file field %s: %w", fieldName, err))
+			return
+		}
+		if _, err := io.Copy(part, file); err != nil {
+			fail(fmt.Errorf("copy %s file %q into request: %w", fieldName, filePath, err))
+			return
+		}
+		if err := writer.Close(); err != nil {
+			fail(fmt.Errorf("finalize Telegram multipart request: %w", err))
+			return
+		}
+		uploadErrCh <- nil
+		_ = bodyWriter.Close()
+	}()
+
+	return bodyReader, writer.FormDataContentType(), uploadErrCh
 }
 
 func (c *TelegramAPIClient) do(req *http.Request, result any) error {

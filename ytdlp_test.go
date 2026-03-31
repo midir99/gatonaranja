@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -52,6 +53,24 @@ func TestValidateYouTubeURL(t *testing.T) {
 			"plain youtube.com",
 			"https://youtube.com/watch?v=dQw4w9WgXcQ",
 			"https://youtube.com/watch?v=dQw4w9WgXcQ",
+			nil,
+		},
+		{
+			"shorts url",
+			"https://www.youtube.com/shorts/dQw4w9WgXcQ",
+			"https://www.youtube.com/shorts/dQw4w9WgXcQ",
+			nil,
+		},
+		{
+			"shorts url strips playlist parameters",
+			"https://www.youtube.com/shorts/dQw4w9WgXcQ?list=PL123456&index=7",
+			"https://www.youtube.com/shorts/dQw4w9WgXcQ",
+			nil,
+		},
+		{
+			"shorts url keeps non playlist query parameters",
+			"https://www.youtube.com/shorts/dQw4w9WgXcQ?feature=share&list=PL123456",
+			"https://www.youtube.com/shorts/dQw4w9WgXcQ?feature=share",
 			nil,
 		},
 		{
@@ -117,6 +136,36 @@ func TestValidateYouTubeURL(t *testing.T) {
 			errors.New(
 				`invalid YouTube URL "https://gaming.youtube.com/watch?v=dQw4w9WgXcQ": host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com`,
 			),
+		},
+		{
+			"invalid youtu.be path without video id",
+			"https://youtu.be/",
+			"",
+			errors.New(`invalid URL "https://youtu.be/": youtu.be path must be "/<VIDEO_ID>"`),
+		},
+		{
+			"invalid youtu.be nested path",
+			"https://youtu.be/dQw4w9WgXcQ/extra",
+			"",
+			errors.New(`invalid URL "https://youtu.be/dQw4w9WgXcQ/extra": youtu.be path must be "/<VIDEO_ID>"`),
+		},
+		{
+			"invalid path on youtube host",
+			"https://www.youtube.com/channel/UC38IQsAvIsxxjztdMZQtwHA",
+			"",
+			errors.New(`invalid URL "https://www.youtube.com/channel/UC38IQsAvIsxxjztdMZQtwHA": path must be "/watch" or "/shorts/<VIDEO_ID>"`),
+		},
+		{
+			"invalid shorts path without video id",
+			"https://www.youtube.com/shorts/",
+			"",
+			errors.New(`invalid URL "https://www.youtube.com/shorts/": path must be "/watch" or "/shorts/<VIDEO_ID>"`),
+		},
+		{
+			"invalid shorts nested path",
+			"https://www.youtube.com/shorts/dQw4w9WgXcQ/extra",
+			"",
+			errors.New(`invalid URL "https://www.youtube.com/shorts/dQw4w9WgXcQ/extra": path must be "/watch" or "/shorts/<VIDEO_ID>"`),
 		},
 		{
 			"missing v query parameter",
@@ -208,7 +257,61 @@ func TestIsValidYouTubeVideoIDPath(t *testing.T) {
 }
 
 func TestSanitizeYouTubeURL(t *testing.T) {
+	testCases := []struct {
+		testName string
+		rawURL   string
+		want     string
+	}{
+		{
+			"watch url without playlist parameters",
+			"https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+			"https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+		},
+		{
+			"watch url removes list and index",
+			"https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL123456&index=3",
+			"https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+		},
+		{
+			"watch url keeps unrelated query parameters",
+			"https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=43s&list=PL123456",
+			"https://www.youtube.com/watch?t=43s&v=dQw4w9WgXcQ",
+		},
+		{
+			"shorts url removes playlist parameters",
+			"https://www.youtube.com/shorts/dQw4w9WgXcQ?list=PL123456&index=7",
+			"https://www.youtube.com/shorts/dQw4w9WgXcQ",
+		},
+		{
+			"shorts url keeps unrelated query parameters",
+			"https://www.youtube.com/shorts/dQw4w9WgXcQ?feature=share&list=PL123456",
+			"https://www.youtube.com/shorts/dQw4w9WgXcQ?feature=share",
+		},
+		{
+			"youtu.be url removes playlist parameters",
+			"https://youtu.be/dQw4w9WgXcQ?list=PL123456&index=7",
+			"https://youtu.be/dQw4w9WgXcQ",
+		},
+		{
+			"youtu.be url keeps unrelated query parameters",
+			"https://youtu.be/dQw4w9WgXcQ?si=abc123&list=PL123456",
+			"https://youtu.be/dQw4w9WgXcQ?si=abc123",
+		},
+	}
 
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			parsedURL, err := url.Parse(tc.rawURL)
+			if err != nil {
+				t.Fatalf("url.Parse() error = %v, want nil", err)
+			}
+
+			got := sanitizeYouTubeURL(parsedURL)
+			if got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
 }
 
 func TestParseDownloadRequest(t *testing.T) {

@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -34,6 +36,53 @@ func newHTTPResponse(statusCode int, body string) *http.Response {
 		Header:     make(http.Header),
 		Body:       io.NopCloser(strings.NewReader(body)),
 	}
+}
+
+func readMultipartRequest(
+	t *testing.T,
+	req *http.Request,
+) (map[string]string, string, string, string) {
+	t.Helper()
+
+	mediaType, params, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
+	if err != nil {
+		t.Fatalf("ParseMediaType() error = %v, want nil", err)
+	}
+	if got, want := mediaType, "multipart/form-data"; got != want {
+		t.Fatalf("media type = %q, want %q", got, want)
+	}
+
+	reader := multipart.NewReader(req.Body, params["boundary"])
+	fields := make(map[string]string)
+	var fileFieldName string
+	var fileName string
+	var fileContents string
+
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("NextPart() error = %v, want nil", err)
+		}
+
+		partBytes, err := io.ReadAll(part)
+		if err != nil {
+			t.Fatalf("ReadAll(part %q) error = %v, want nil", part.FormName(), err)
+		}
+
+		if part.FileName() == "" {
+			fields[part.FormName()] = string(partBytes)
+			continue
+		}
+
+		fileFieldName = part.FormName()
+		fileName = part.FileName()
+		fileContents = string(partBytes)
+	}
+
+	return fields, fileFieldName, fileName, fileContents
 }
 
 func TestNewTelegramAPIClient(t *testing.T) {
@@ -227,31 +276,21 @@ func TestTelegramAPIClientSendVideo(t *testing.T) {
 			t.Fatalf("Content-Type = %q, want multipart/form-data", got)
 		}
 
-		if err := req.ParseMultipartForm(1 << 20); err != nil {
-			t.Fatalf("ParseMultipartForm() error = %v, want nil", err)
-		}
-		if got, want := req.FormValue("chat_id"), "111"; got != want {
+		fields, fileFieldName, fileName, fileContents := readMultipartRequest(t, req)
+		if got, want := fields["chat_id"], "111"; got != want {
 			t.Fatalf("chat_id = %q, want %q", got, want)
 		}
-		if got, want := req.FormValue("reply_to_message_id"), "222"; got != want {
+		if got, want := fields["reply_to_message_id"], "222"; got != want {
 			t.Fatalf("reply_to_message_id = %q, want %q", got, want)
 		}
-
-		file, header, err := req.FormFile("video")
-		if err != nil {
-			t.Fatalf("FormFile(video) error = %v, want nil", err)
+		if got, want := fileFieldName, "video"; got != want {
+			t.Fatalf("file field name = %q, want %q", got, want)
 		}
-		defer file.Close()
-
-		fileBytes, err := io.ReadAll(file)
-		if err != nil {
-			t.Fatalf("ReadAll(video) error = %v, want nil", err)
-		}
-		if got, want := string(fileBytes), "video-bytes"; got != want {
-			t.Fatalf("video file contents = %q, want %q", got, want)
-		}
-		if got, want := header.Filename, "clip.mp4"; got != want {
+		if got, want := fileName, "clip.mp4"; got != want {
 			t.Fatalf("video filename = %q, want %q", got, want)
+		}
+		if got, want := fileContents, "video-bytes"; got != want {
+			t.Fatalf("video file contents = %q, want %q", got, want)
 		}
 
 		return newHTTPResponse(http.StatusOK, `{
@@ -289,31 +328,21 @@ func TestTelegramAPIClientSendAudio(t *testing.T) {
 			t.Fatalf("request path = %q, want %q", got, want)
 		}
 
-		if err := req.ParseMultipartForm(1 << 20); err != nil {
-			t.Fatalf("ParseMultipartForm() error = %v, want nil", err)
-		}
-		if got, want := req.FormValue("chat_id"), "555"; got != want {
+		fields, fileFieldName, fileName, fileContents := readMultipartRequest(t, req)
+		if got, want := fields["chat_id"], "555"; got != want {
 			t.Fatalf("chat_id = %q, want %q", got, want)
 		}
-		if got := req.FormValue("reply_to_message_id"); got != "" {
+		if got := fields["reply_to_message_id"]; got != "" {
 			t.Fatalf("reply_to_message_id = %q, want empty string", got)
 		}
-
-		file, header, err := req.FormFile("audio")
-		if err != nil {
-			t.Fatalf("FormFile(audio) error = %v, want nil", err)
+		if got, want := fileFieldName, "audio"; got != want {
+			t.Fatalf("file field name = %q, want %q", got, want)
 		}
-		defer file.Close()
-
-		fileBytes, err := io.ReadAll(file)
-		if err != nil {
-			t.Fatalf("ReadAll(audio) error = %v, want nil", err)
-		}
-		if got, want := string(fileBytes), "audio-bytes"; got != want {
-			t.Fatalf("audio file contents = %q, want %q", got, want)
-		}
-		if got, want := header.Filename, "clip.mp3"; got != want {
+		if got, want := fileName, "clip.mp3"; got != want {
 			t.Fatalf("audio filename = %q, want %q", got, want)
+		}
+		if got, want := fileContents, "audio-bytes"; got != want {
+			t.Fatalf("audio file contents = %q, want %q", got, want)
 		}
 
 		return newHTTPResponse(http.StatusOK, `{
