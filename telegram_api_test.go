@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -16,6 +17,18 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
+}
+
+type errReadCloser struct {
+	err error
+}
+
+func (r errReadCloser) Read(_ []byte) (int, error) {
+	return 0, r.err
+}
+
+func (r errReadCloser) Close() error {
+	return nil
 }
 
 func newTelegramAPIClientForTest(t *testing.T, fn roundTripFunc) *TelegramAPIClient {
@@ -95,6 +108,16 @@ func TestNewTelegramAPIClient(t *testing.T) {
 	}
 }
 
+func TestNewTelegramAPIClientUsesDefaultHTTPClient(t *testing.T) {
+	client, err := NewTelegramAPIClient("test-token", nil)
+	if err != nil {
+		t.Fatalf("NewTelegramAPIClient() error = %v, want nil", err)
+	}
+	if got, want := client.httpClient, http.DefaultClient; got != want {
+		t.Fatalf("client.httpClient = %p, want %p", got, want)
+	}
+}
+
 func TestTelegramAPIClientReceiveUpdates(t *testing.T) {
 	client := newTelegramAPIClientForTest(t, func(req *http.Request) (*http.Response, error) {
 		if got, want := req.Method, http.MethodGet; got != want {
@@ -153,6 +176,33 @@ func TestTelegramAPIClientReceiveUpdates(t *testing.T) {
 	}
 }
 
+func TestTelegramAPIClientReceiveUpdatesWithoutOptionalQueryParams(t *testing.T) {
+	client := newTelegramAPIClientForTest(t, func(req *http.Request) (*http.Response, error) {
+		if got, want := req.Method, http.MethodGet; got != want {
+			t.Fatalf("request method = %q, want %q", got, want)
+		}
+		if got, want := req.URL.Path, "/bottest-token/getUpdates"; got != want {
+			t.Fatalf("request path = %q, want %q", got, want)
+		}
+		if got := req.URL.RawQuery; got != "" {
+			t.Fatalf("raw query = %q, want empty string", got)
+		}
+
+		return newHTTPResponse(http.StatusOK, `{
+			"ok": true,
+			"result": []
+		}`), nil
+	})
+
+	updates, err := client.ReceiveUpdates(context.Background(), 0, 0)
+	if err != nil {
+		t.Fatalf("ReceiveUpdates() error = %v, want nil", err)
+	}
+	if got, want := len(updates), 0; got != want {
+		t.Fatalf("len(updates) = %d, want %d", got, want)
+	}
+}
+
 func TestTelegramAPIClientGetMe(t *testing.T) {
 	client := newTelegramAPIClientForTest(t, func(req *http.Request) (*http.Response, error) {
 		if got, want := req.Method, http.MethodGet; got != want {
@@ -203,6 +253,20 @@ func TestTelegramAPIClientGetMeReturnsTelegramAPIError(t *testing.T) {
 		t.Fatal("GetMe() error = nil, want non-nil")
 	}
 	if got, want := err.Error(), "telegram API error 401: Unauthorized"; got != want {
+		t.Fatalf("GetMe() error = %q, want %q", got, want)
+	}
+}
+
+func TestTelegramAPIClientGetMeReturnsHTTPError(t *testing.T) {
+	client := newTelegramAPIClientForTest(t, func(req *http.Request) (*http.Response, error) {
+		return newHTTPResponse(http.StatusBadGateway, "upstream gateway error"), nil
+	})
+
+	_, err := client.GetMe(context.Background())
+	if err == nil {
+		t.Fatal("GetMe() error = nil, want non-nil")
+	}
+	if got, want := err.Error(), "telegram API returned HTTP 502: upstream gateway error"; got != want {
 		t.Fatalf("GetMe() error = %q, want %q", got, want)
 	}
 }
@@ -366,6 +430,21 @@ func TestTelegramAPIClientSendAudio(t *testing.T) {
 	}
 }
 
+func TestTelegramAPIClientSendAudioReturnsOpenFileError(t *testing.T) {
+	client := newTelegramAPIClientForTest(t, func(req *http.Request) (*http.Response, error) {
+		t.Fatalf("unexpected HTTP request: %s %s", req.Method, req.URL.String())
+		return nil, nil
+	})
+
+	_, err := client.SendAudio(context.Background(), 1, 2, "/path/that/does/not/exist.mp3")
+	if err == nil {
+		t.Fatal("SendAudio() error = nil, want non-nil")
+	}
+	if got := err.Error(); !strings.Contains(got, `open audio file "/path/that/does/not/exist.mp3"`) {
+		t.Fatalf("SendAudio() error = %q, want it to mention the audio file open failure", got)
+	}
+}
+
 func TestTelegramAPIClientSendMediaRequiresFilePath(t *testing.T) {
 	client := newTelegramAPIClientForTest(t, func(req *http.Request) (*http.Response, error) {
 		t.Fatalf("unexpected HTTP request: %s %s", req.Method, req.URL.String())
@@ -441,5 +520,70 @@ func TestTelegramAPIClientReturnsHTTPError(t *testing.T) {
 	}
 	if got, want := err.Error(), "telegram API returned HTTP 500: upstream exploded"; got != want {
 		t.Fatalf("ReceiveUpdates() error = %q, want %q", got, want)
+	}
+}
+
+func TestTelegramAPIClientPostJSONReturnsMarshalError(t *testing.T) {
+	client := newTelegramAPIClientForTest(t, func(req *http.Request) (*http.Response, error) {
+		t.Fatalf("unexpected HTTP request: %s %s", req.Method, req.URL.String())
+		return nil, nil
+	})
+
+	err := client.postJSON(
+		context.Background(),
+		"sendMessage",
+		map[string]any{"bad": func() {}},
+		nil,
+	)
+	if err == nil {
+		t.Fatal("postJSON() error = nil, want non-nil")
+	}
+	if got := err.Error(); !strings.Contains(got, "marshal Telegram payload: json: unsupported type: func()") {
+		t.Fatalf("postJSON() error = %q, want it to mention marshal failure", got)
+	}
+}
+
+func TestTelegramAPIClientDoWithNilResult(t *testing.T) {
+	client := newTelegramAPIClientForTest(t, func(req *http.Request) (*http.Response, error) {
+		return newHTTPResponse(http.StatusOK, `{
+			"ok": true,
+			"result": {
+				"ignored": true
+			}
+		}`), nil
+	})
+
+	req, err := http.NewRequest(http.MethodGet, client.methodURL("getMe"), nil)
+	if err != nil {
+		t.Fatalf("http.NewRequest() error = %v, want nil", err)
+	}
+
+	err = client.do(req, nil)
+	if err != nil {
+		t.Fatalf("do() error = %v, want nil", err)
+	}
+}
+
+func TestTelegramAPIClientDoReturnsReadResponseError(t *testing.T) {
+	wantErr := errors.New("read exploded")
+	client := newTelegramAPIClientForTest(t, func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       errReadCloser{err: wantErr},
+		}, nil
+	})
+
+	req, err := http.NewRequest(http.MethodGet, client.methodURL("getMe"), nil)
+	if err != nil {
+		t.Fatalf("http.NewRequest() error = %v, want nil", err)
+	}
+
+	err = client.do(req, &TelegramAPIUser{})
+	if err == nil {
+		t.Fatal("do() error = nil, want non-nil")
+	}
+	if got, want := err.Error(), "read Telegram response: read exploded"; got != want {
+		t.Fatalf("do() error = %q, want %q", got, want)
 	}
 }
