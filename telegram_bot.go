@@ -37,6 +37,8 @@ const (
 	telegramUpdateRetryDelay         = time.Second
 )
 
+var afterRetryDelay = time.After
+
 type TelegramBotClient interface {
 	ReceiveUpdates(ctx context.Context, offset int64, timeoutSeconds int) ([]TelegramAPIUpdate, error)
 	SendText(ctx context.Context, chatID int64, replyToMessageID int64, text string) (*TelegramAPIMessage, error)
@@ -305,7 +307,7 @@ func RunTelegramBot(
 			case <-ctx.Done():
 				logger.Info("Stopping Telegram update loop")
 				return nil
-			case <-time.After(telegramUpdateRetryDelay):
+			case <-afterRetryDelay(telegramUpdateRetryDelay):
 			}
 
 			continue

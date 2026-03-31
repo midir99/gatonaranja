@@ -8,6 +8,10 @@
 - Make the installer take the serviced file from the tarball
 - Make CI actions for when a release is created so we get tarballs with the binary for linux, specifically for x86_64 and arm64
 - Fix indentation for install.sh and uninstall.sh script
+- Implement the version command to know the version of the program
+- Better user error messages, you need to use sentinels, need better error messages for:
+  - invalid timestamps range
+  - invalid YT videos URL
 
 telegram.go (line 258): the current “goroutine per request + semaphore inside goroutine” pattern keeps the update loop responsive, but it still allows an unbounded number of waiting goroutines if many requests arrive while all 5 slots are busy. That’s fine for a small/private bot, but if usage grows, a bounded worker queue would be safer than unlimited parked goroutines.
 

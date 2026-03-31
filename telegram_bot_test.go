@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -97,6 +99,10 @@ func (d *fakeMediaDownloader) MediaKind() MediaKind {
 
 func newTestLogger() *slog.Logger {
 	return slog.New(slog.DiscardHandler)
+}
+
+func newBufferLogger(buf *bytes.Buffer) *slog.Logger {
+	return slog.New(slog.NewTextHandler(buf, nil))
 }
 
 func newTestMessage(text string) *TelegramAPIMessage {
@@ -206,6 +212,49 @@ func TestSendReply(t *testing.T) {
 	}
 }
 
+func TestLogTelegramSendError(t *testing.T) {
+	var buf bytes.Buffer
+	logger := newBufferLogger(&buf)
+
+	logTelegramSendError(logger, "arthur", 777, errors.New("boom"))
+
+	output := buf.String()
+	for _, want := range []string{
+		"Failed to send Telegram message",
+		"user_id=777",
+		"user_name=arthur",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("log output = %q, want it to contain %q", output, want)
+		}
+	}
+	if !strings.Contains(output, `error=boom`) && !strings.Contains(output, `error="boom"`) {
+		t.Fatalf("log output = %q, want it to contain the error field", output)
+	}
+}
+
+func TestSendReplyLogsErrorOnSendFailure(t *testing.T) {
+	var buf bytes.Buffer
+	logger := newBufferLogger(&buf)
+	client := &fakeTelegramBotClient{
+		sendTextErr: errors.New("send exploded"),
+	}
+	message := newTestMessage("hello")
+
+	sendReply(context.Background(), client, logger, message, "hi there")
+
+	if got, want := len(client.sendTextCalls), 1; got != want {
+		t.Fatalf("len(sendTextCalls) = %d, want %d", got, want)
+	}
+	output := buf.String()
+	if !strings.Contains(output, "Failed to send Telegram message") {
+		t.Fatalf("log output = %q, want it to contain the send failure message", output)
+	}
+	if !strings.Contains(output, "user_id=777") {
+		t.Fatalf("log output = %q, want it to contain the user id", output)
+	}
+}
+
 func TestHandleDownloadRequestDownloadFailure(t *testing.T) {
 	client := &fakeTelegramBotClient{}
 	message := newTestMessage("request")
@@ -267,6 +316,130 @@ func TestHandleDownloadRequestMediaTooLarge(t *testing.T) {
 	}
 }
 
+func TestHandleDownloadRequestAudioSuccess(t *testing.T) {
+	client := &fakeTelegramBotClient{}
+	message := newTestMessage("request")
+	downloader := &fakeMediaDownloader{
+		filename:  "clip.mp3",
+		mediaKind: MediaAudio,
+	}
+
+	productionRemoveFile := removeFile
+	defer func() { removeFile = productionRemoveFile }()
+
+	var removedPath string
+	removeFile = func(path string) error {
+		removedPath = path
+		return nil
+	}
+
+	handleDownloadRequest(context.Background(), client, newTestLogger(), message, downloader, 30*time.Second)
+
+	if got, want := len(client.sendAudioCalls), 1; got != want {
+		t.Fatalf("len(sendAudioCalls) = %d, want %d", got, want)
+	}
+	if got, want := client.sendAudioCalls[0].filePath, "clip.mp3"; got != want {
+		t.Fatalf("audio file path = %q, want %q", got, want)
+	}
+	if got, want := len(client.sendTextCalls), 0; got != want {
+		t.Fatalf("len(sendTextCalls) = %d, want %d", got, want)
+	}
+	if got, want := removedPath, "clip.mp3"; got != want {
+		t.Fatalf("removed path = %q, want %q", got, want)
+	}
+}
+
+func TestHandleDownloadRequestGenericSendFailure(t *testing.T) {
+	client := &fakeTelegramBotClient{
+		sendVideoErr: errors.New("send exploded"),
+	}
+	message := newTestMessage("request")
+	downloader := &fakeMediaDownloader{
+		filename:  "clip.mp4",
+		mediaKind: MediaVideo,
+	}
+
+	productionRemoveFile := removeFile
+	defer func() { removeFile = productionRemoveFile }()
+
+	removeFile = func(path string) error { return nil }
+
+	handleDownloadRequest(context.Background(), client, newTestLogger(), message, downloader, time.Minute)
+
+	if got, want := len(client.sendVideoCalls), 1; got != want {
+		t.Fatalf("len(sendVideoCalls) = %d, want %d", got, want)
+	}
+	if got, want := len(client.sendTextCalls), 1; got != want {
+		t.Fatalf("len(sendTextCalls) = %d, want %d", got, want)
+	}
+	if got, want := client.sendTextCalls[0].text, "I downloaded it, but I couldn't send it to you 🙀"; got != want {
+		t.Fatalf("fallback text = %q, want %q", got, want)
+	}
+}
+
+func TestHandleDownloadRequestUnsupportedMediaKind(t *testing.T) {
+	client := &fakeTelegramBotClient{}
+	message := newTestMessage("request")
+	downloader := &fakeMediaDownloader{
+		filename:  "clip.bin",
+		mediaKind: MediaKind(99),
+	}
+
+	productionRemoveFile := removeFile
+	defer func() { removeFile = productionRemoveFile }()
+
+	var removedPath string
+	removeFile = func(path string) error {
+		removedPath = path
+		return nil
+	}
+
+	handleDownloadRequest(context.Background(), client, newTestLogger(), message, downloader, time.Minute)
+
+	if got, want := len(client.sendVideoCalls), 0; got != want {
+		t.Fatalf("len(sendVideoCalls) = %d, want %d", got, want)
+	}
+	if got, want := len(client.sendAudioCalls), 0; got != want {
+		t.Fatalf("len(sendAudioCalls) = %d, want %d", got, want)
+	}
+	if got, want := len(client.sendTextCalls), 1; got != want {
+		t.Fatalf("len(sendTextCalls) = %d, want %d", got, want)
+	}
+	if got, want := client.sendTextCalls[0].text, "I downloaded it, but I couldn't send it to you 🙀"; got != want {
+		t.Fatalf("fallback text = %q, want %q", got, want)
+	}
+	if got, want := removedPath, "clip.bin"; got != want {
+		t.Fatalf("removed path = %q, want %q", got, want)
+	}
+}
+
+func TestHandleDownloadRequestCleanupFailure(t *testing.T) {
+	var buf bytes.Buffer
+	logger := newBufferLogger(&buf)
+	client := &fakeTelegramBotClient{}
+	message := newTestMessage("request")
+	downloader := &fakeMediaDownloader{
+		filename:  "clip.mp4",
+		mediaKind: MediaVideo,
+	}
+
+	productionRemoveFile := removeFile
+	defer func() { removeFile = productionRemoveFile }()
+
+	removeFile = func(path string) error {
+		return errors.New("remove exploded")
+	}
+
+	handleDownloadRequest(context.Background(), client, logger, message, downloader, time.Minute)
+
+	if got, want := len(client.sendVideoCalls), 1; got != want {
+		t.Fatalf("len(sendVideoCalls) = %d, want %d", got, want)
+	}
+	if !strings.Contains(buf.String(), "Failed to remove downloaded file") {
+		t.Fatalf("log output = %q, want it to contain the cleanup failure", buf.String())
+	}
+}
+
 func TestDownloadRequestHandlerHandleUpdateUnauthorizedUser(t *testing.T) {
 	client := &fakeTelegramBotClient{}
 	logger := newTestLogger()
@@ -292,6 +465,72 @@ func TestDownloadRequestHandlerHandleUpdateUnauthorizedUser(t *testing.T) {
 	}
 	if got, want := client.sendTextCalls[0].text, "You are not authorized to use this bot 😾"; got != want {
 		t.Fatalf("reply text = %q, want %q", got, want)
+	}
+}
+
+func TestDownloadRequestHandlerHandleUpdateIgnoresNilMessage(t *testing.T) {
+	client := &fakeTelegramBotClient{}
+	handler, err := NewDownloadRequestHandler(client, newTestLogger(), []int64{777}, time.Minute, make(chan struct{}, 1), &sync.WaitGroup{})
+	if err != nil {
+		t.Fatalf("NewDownloadRequestHandler() error = %v, want nil", err)
+	}
+
+	err = handler.HandleUpdate(context.Background(), TelegramAPIUpdate{UpdateID: 1})
+	if err != nil {
+		t.Fatalf("HandleUpdate() error = %v, want nil", err)
+	}
+	if got, want := len(client.sendTextCalls), 0; got != want {
+		t.Fatalf("len(sendTextCalls) = %d, want %d", got, want)
+	}
+}
+
+func TestDownloadRequestHandlerHandleUpdateIgnoresNilSender(t *testing.T) {
+	client := &fakeTelegramBotClient{}
+	handler, err := NewDownloadRequestHandler(client, newTestLogger(), []int64{777}, time.Minute, make(chan struct{}, 1), &sync.WaitGroup{})
+	if err != nil {
+		t.Fatalf("NewDownloadRequestHandler() error = %v, want nil", err)
+	}
+
+	err = handler.HandleUpdate(context.Background(), TelegramAPIUpdate{
+		UpdateID: 1,
+		Message: &TelegramAPIMessage{
+			MessageID: 99,
+			Chat:      TelegramAPIChat{ID: 12345},
+			Text:      "https://www.youtube.com/watch?v=AqjB8DGt85U",
+		},
+	})
+	if err != nil {
+		t.Fatalf("HandleUpdate() error = %v, want nil", err)
+	}
+	if got, want := len(client.sendTextCalls), 0; got != want {
+		t.Fatalf("len(sendTextCalls) = %d, want %d", got, want)
+	}
+}
+
+func TestDownloadRequestHandlerHandleUpdateIgnoresRequestWhenShutdownInProgress(t *testing.T) {
+	var buf bytes.Buffer
+	logger := newBufferLogger(&buf)
+	client := &fakeTelegramBotClient{}
+	handler, err := NewDownloadRequestHandler(client, logger, []int64{777}, time.Minute, make(chan struct{}, 1), &sync.WaitGroup{})
+	if err != nil {
+		t.Fatalf("NewDownloadRequestHandler() error = %v, want nil", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err = handler.HandleUpdate(ctx, TelegramAPIUpdate{
+		UpdateID: 1,
+		Message:  newTestMessage("https://www.youtube.com/watch?v=AqjB8DGt85U"),
+	})
+	if err != nil {
+		t.Fatalf("HandleUpdate() error = %v, want nil", err)
+	}
+	if got, want := len(client.sendTextCalls), 0; got != want {
+		t.Fatalf("len(sendTextCalls) = %d, want %d", got, want)
+	}
+	if !strings.Contains(buf.String(), "Ignoring request because shutdown is in progress") {
+		t.Fatalf("log output = %q, want it to contain the shutdown message", buf.String())
 	}
 }
 
@@ -338,10 +577,10 @@ func TestDownloadRequestHandlerHandleUpdateDispatchesDownloadRequest(t *testing.
 	defer func() { dispatchDownloadRequest = productionDispatchDownloadRequest }()
 
 	var (
-		dispatchCalled  bool
-		gotTimeout      time.Duration
-		gotMessage      *TelegramAPIMessage
-		gotMediaKind    MediaKind
+		dispatchCalled   bool
+		gotTimeout       time.Duration
+		gotMessage       *TelegramAPIMessage
+		gotMediaKind     MediaKind
 		gotDownloadSlots chan struct{}
 	)
 
@@ -488,5 +727,109 @@ func TestRunTelegramBotProcessesUpdatesAndAdvancesOffset(t *testing.T) {
 	}
 	if got, want := offsets[1], int64(8); got != want {
 		t.Fatalf("second offset = %d, want %d", got, want)
+	}
+}
+
+func TestRunTelegramBotContinuesWhenHandlerReturnsError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	client := &fakeTelegramBotClient{}
+	logger := newTestLogger()
+
+	productionAfterRetryDelay := afterRetryDelay
+	defer func() { afterRetryDelay = productionAfterRetryDelay }()
+	afterRetryDelay = time.After
+
+	var receiveCalls int
+	client.receiveUpdatesFunc = func(ctx context.Context, offset int64, timeoutSeconds int) ([]TelegramAPIUpdate, error) {
+		receiveCalls++
+		switch receiveCalls {
+		case 1:
+			return []TelegramAPIUpdate{{UpdateID: 7}}, nil
+		case 2:
+			cancel()
+			return nil, context.Canceled
+		default:
+			t.Fatalf("ReceiveUpdates() called too many times: %d", receiveCalls)
+			return nil, nil
+		}
+	}
+
+	var handled int
+	handler := func(ctx context.Context, update TelegramAPIUpdate) error {
+		handled++
+		return errors.New("boom")
+	}
+
+	if err := RunTelegramBot(ctx, client, logger, handler); err != nil {
+		t.Fatalf("RunTelegramBot() error = %v, want nil", err)
+	}
+	if got, want := handled, 1; got != want {
+		t.Fatalf("handled updates = %d, want %d", got, want)
+	}
+	if got, want := receiveCalls, 2; got != want {
+		t.Fatalf("receive calls = %d, want %d", got, want)
+	}
+}
+
+func TestRunTelegramBotStopsImmediatelyWhenContextIsCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	client := &fakeTelegramBotClient{
+		receiveUpdatesFunc: func(ctx context.Context, offset int64, timeoutSeconds int) ([]TelegramAPIUpdate, error) {
+			t.Fatal("ReceiveUpdates() should not be called when context is already canceled")
+			return nil, nil
+		},
+	}
+
+	if err := RunTelegramBot(ctx, client, newTestLogger(), func(context.Context, TelegramAPIUpdate) error { return nil }); err != nil {
+		t.Fatalf("RunTelegramBot() error = %v, want nil", err)
+	}
+}
+
+func TestRunTelegramBotRetriesAfterReceiveError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	client := &fakeTelegramBotClient{}
+	logger := newTestLogger()
+
+	productionAfterRetryDelay := afterRetryDelay
+	defer func() { afterRetryDelay = productionAfterRetryDelay }()
+
+	retryDelayHit := false
+	afterRetryDelay = func(d time.Duration) <-chan time.Time {
+		retryDelayHit = true
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
+
+	var receiveCalls int
+	client.receiveUpdatesFunc = func(ctx context.Context, offset int64, timeoutSeconds int) ([]TelegramAPIUpdate, error) {
+		receiveCalls++
+		switch receiveCalls {
+		case 1:
+			return nil, errors.New("temporary failure")
+		case 2:
+			cancel()
+			return nil, context.Canceled
+		default:
+			t.Fatalf("ReceiveUpdates() called too many times: %d", receiveCalls)
+			return nil, nil
+		}
+	}
+
+	err := RunTelegramBot(ctx, client, logger, func(context.Context, TelegramAPIUpdate) error { return nil })
+	if err != nil {
+		t.Fatalf("RunTelegramBot() error = %v, want nil", err)
+	}
+	if !retryDelayHit {
+		t.Fatal("afterRetryDelay() was not called")
+	}
+	if got, want := receiveCalls, 2; got != want {
+		t.Fatalf("receive calls = %d, want %d", got, want)
 	}
 }
