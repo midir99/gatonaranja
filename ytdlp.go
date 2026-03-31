@@ -35,8 +35,8 @@ type DownloadRequest struct {
 	sourceURL   string
 }
 
-// validateYouTubeURL parses rawURL and reports whether it is a valid YouTube
-// URL using the http or https scheme.
+// validateYouTubeURL parses rawURL, validates that it is a supported YouTube
+// video URL, and returns a sanitized version of the URL.
 func validateYouTubeURL(rawURL string) (string, error) {
 	rawURLNoSpaces := strings.TrimSpace(rawURL)
 	if rawURLNoSpaces == "" {
@@ -54,14 +54,59 @@ func validateYouTubeURL(rawURL string) (string, error) {
 
 	host := strings.ToLower(parsedURL.Host)
 	switch host {
-	case "youtube.com", "www.youtube.com", "music.youtube.com", "youtu.be", "m.youtube.com":
-		return parsedURL.String(), nil
+	case "youtu.be":
+		if !isValidYouTubeVideoIDPath("/", parsedURL.Path) {
+			return "", fmt.Errorf(`invalid URL %q: youtu.be path must be "/<VIDEO_ID>"`, rawURL)
+		}
+		return sanitizeYouTubeURL(parsedURL), nil
+	case "youtube.com", "www.youtube.com", "music.youtube.com", "m.youtube.com":
+		if parsedURL.Path == "/watch" {
+			query := parsedURL.Query()
+			if query.Get("v") == "" {
+				return "", fmt.Errorf(`invalid URL %q: "v" query parameter is missing`, rawURL)
+			}
+			return sanitizeYouTubeURL(parsedURL), nil
+		} else if isValidYouTubeVideoIDPath("/shorts/", parsedURL.Path) {
+			return sanitizeYouTubeURL(parsedURL), nil
+		} else {
+			return "", fmt.Errorf(`invalid URL %q: path must be "/watch" or "/shorts/<VIDEO_ID>"`, rawURL)
+		}
 	default:
 		return "", fmt.Errorf(
 			"invalid YouTube URL %q: host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com",
 			rawURL,
 		)
 	}
+}
+
+// isValidYouTubeVideoIDPath reports whether path starts with prefix and the
+// remaining suffix is exactly one non-empty path segment that can be treated as
+// a YouTube video ID.
+func isValidYouTubeVideoIDPath(prefix, path string) bool {
+	if !strings.HasPrefix(path, prefix) {
+		return false
+	}
+
+	videoID := strings.TrimPrefix(path, prefix)
+	if videoID == "" {
+		return false
+	}
+	if strings.Contains(videoID, "/") {
+		return false
+	}
+
+	return true
+}
+
+// sanitizeYouTubeURL removes playlist-related query parameters from a parsed
+// YouTube video URL while preserving the actual video reference.
+func sanitizeYouTubeURL(parsedURL *url.URL) string {
+	query := parsedURL.Query()
+	query.Del("list")
+	query.Del("index")
+	parsedURL.RawQuery = query.Encode()
+
+	return parsedURL.String()
 }
 
 // ParseDownloadRequest parses a download request string in the form URL,
@@ -165,7 +210,7 @@ func (dr DownloadRequest) MediaKind() MediaKind {
 // including optional section download and audio extraction flags, and
 // returns it as a slice of arguments ready to be passed to "[exec.Command]".
 func (dr DownloadRequest) BuildCommand() ([]string, error) {
-	cmd := []string{"yt-dlp", "--no-simulate", "--print", "after_move:filepath"}
+	cmd := []string{"yt-dlp", "--no-simulate", "--no-playlist", "--print", "after_move:filepath"}
 
 	if dr.startSecond != StartSecond || dr.endSecond != EndSecond {
 		downloadSections, err := SecondsToDownloadSections(dr.startSecond, dr.endSecond)

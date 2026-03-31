@@ -25,6 +25,12 @@ func TestValidateYouTubeURL(t *testing.T) {
 			nil,
 		},
 		{
+			"youtu.be url strips playlist parameters",
+			"https://youtu.be/8v_kBIIGViY?list=PL123456&index=4",
+			"https://youtu.be/8v_kBIIGViY",
+			nil,
+		},
+		{
 			"music youtube",
 			"https://music.youtube.com/watch?v=Tsz8x47jhz8",
 			"https://music.youtube.com/watch?v=Tsz8x47jhz8",
@@ -46,6 +52,18 @@ func TestValidateYouTubeURL(t *testing.T) {
 			"plain youtube.com",
 			"https://youtube.com/watch?v=dQw4w9WgXcQ",
 			"https://youtube.com/watch?v=dQw4w9WgXcQ",
+			nil,
+		},
+		{
+			"watch url strips playlist parameters",
+			"https://music.youtube.com/watch?v=5X-Mrc2l1d0&list=RDAMVM5X-Mrc2l1d0&index=7",
+			"https://music.youtube.com/watch?v=5X-Mrc2l1d0",
+			nil,
+		},
+		{
+			"watch url keeps non playlist query parameters",
+			"https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=43s&list=PL123456",
+			"https://www.youtube.com/watch?t=43s&v=dQw4w9WgXcQ",
 			nil,
 		},
 		{
@@ -100,6 +118,12 @@ func TestValidateYouTubeURL(t *testing.T) {
 				`invalid YouTube URL "https://gaming.youtube.com/watch?v=dQw4w9WgXcQ": host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com`,
 			),
 		},
+		{
+			"missing v query parameter",
+			"https://www.youtube.com/watch?list=PL123456",
+			"",
+			errors.New(`invalid URL "https://www.youtube.com/watch?list=PL123456": "v" query parameter is missing`),
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
@@ -116,6 +140,77 @@ func TestValidateYouTubeURL(t *testing.T) {
 		})
 	}
 }
+
+func TestIsValidYouTubeVideoIDPath(t *testing.T) {
+	testCases := []struct {
+		testName string
+		prefix   string
+		path     string
+		want     bool
+	}{
+		{
+			"youtu.be path with video id",
+			"/",
+			"/dQw4w9WgXcQ",
+			true,
+		},
+		{
+			"shorts path with video id",
+			"/shorts/",
+			"/shorts/dQw4w9WgXcQ",
+			true,
+		},
+		{
+			"empty youtu.be path",
+			"/",
+			"/",
+			false,
+		},
+		{
+			"empty shorts path",
+			"/shorts/",
+			"/shorts/",
+			false,
+		},
+		{
+			"nested youtu.be path",
+			"/",
+			"/foo/bar",
+			false,
+		},
+		{
+			"nested shorts path",
+			"/shorts/",
+			"/shorts/dQw4w9WgXcQ/extra",
+			false,
+		},
+		{
+			"wrong prefix",
+			"/shorts/",
+			"/watch",
+			false,
+		},
+		{
+			"path without leading slash for youtu.be prefix",
+			"/",
+			"dQw4w9WgXcQ",
+			false,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			got := isValidYouTubeVideoIDPath(tc.prefix, tc.path)
+			if got != tc.want {
+				t.Fatalf("got %t, want %t", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSanitizeYouTubeURL(t *testing.T) {
+
+}
+
 func TestParseDownloadRequest(t *testing.T) {
 	testCases := []struct {
 		testName              string
@@ -168,6 +263,28 @@ func TestParseDownloadRequest(t *testing.T) {
 			nil,
 		},
 		{
+			"playlist parameters are stripped from video url",
+			"https://music.youtube.com/watch?v=5X-Mrc2l1d0&list=RDAMVM5X-Mrc2l1d0 2:45-2:53 audio",
+			DownloadRequest{
+				startSecond: 165,
+				endSecond:   173,
+				mediaKind:   MediaAudio,
+				sourceURL:   "https://music.youtube.com/watch?v=5X-Mrc2l1d0",
+			},
+			nil,
+		},
+		{
+			"youtu.be short link download request",
+			"https://youtu.be/8v_kBIIGViY?list=PL123456&index=4 audio",
+			DownloadRequest{
+				startSecond: StartSecond,
+				endSecond:   EndSecond,
+				mediaKind:   MediaAudio,
+				sourceURL:   "https://youtu.be/8v_kBIIGViY",
+			},
+			nil,
+		},
+		{
 			"empty download request",
 			"",
 			DownloadRequest{},
@@ -181,6 +298,14 @@ func TestParseDownloadRequest(t *testing.T) {
 			DownloadRequest{},
 			errors.New(
 				`invalid download request "https://gaming.youtube.com/watch?v=dQw4w9WgXcQ": invalid YouTube URL "https://gaming.youtube.com/watch?v=dQw4w9WgXcQ": host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com; expected URL [TIMESTAMP_RANGE] [audio]`,
+			),
+		},
+		{
+			"missing v query parameter",
+			"https://www.youtube.com/watch?list=PL123456",
+			DownloadRequest{},
+			errors.New(
+				`invalid download request "https://www.youtube.com/watch?list=PL123456": invalid URL "https://www.youtube.com/watch?list=PL123456": "v" query parameter is missing; expected URL [TIMESTAMP_RANGE] [audio]`,
 			),
 		},
 		{
@@ -412,6 +537,7 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
+				"--no-playlist",
 				"--print", "after_move:filepath",
 				"--format", "18/best[ext=mp4]/best",
 				"--format-sort", "+size,+br,+res,+fps",
@@ -431,6 +557,7 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
+				"--no-playlist",
 				"--print", "after_move:filepath",
 				"--download-sections", "*00:00-00:05",
 				"--format", "18/best[ext=mp4]/best",
@@ -451,6 +578,7 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
+				"--no-playlist",
 				"--print", "after_move:filepath",
 				"--download-sections", "*00:00-00:05",
 				"--extract-audio",
@@ -484,6 +612,7 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
+				"--no-playlist",
 				"--print", "after_move:filepath",
 				"--download-sections", "*00:10-00:20",
 				"--format", "18/best[ext=mp4]/best",
@@ -504,6 +633,7 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
+				"--no-playlist",
 				"--print", "after_move:filepath",
 				"--download-sections", "*01:00:00-01:01:05",
 				"--format", "18/best[ext=mp4]/best",
@@ -524,6 +654,7 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
+				"--no-playlist",
 				"--print", "after_move:filepath",
 				"--format", "18/best[ext=mp4]/best",
 				"--format-sort", "+size,+br,+res,+fps",
@@ -543,6 +674,7 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
+				"--no-playlist",
 				"--print", "after_move:filepath",
 				"--extract-audio",
 				"--audio-format", "mp3",
@@ -564,6 +696,7 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
+				"--no-playlist",
 				"--print", "after_move:filepath",
 				"--download-sections", "*00:30-inf",
 				"--extract-audio",
@@ -619,6 +752,7 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
+				"--no-playlist",
 				"--print", "after_move:filepath",
 				"--extract-audio",
 				"--audio-format", "mp3",
