@@ -13,6 +13,9 @@ import (
 	"time"
 )
 
+// Version identifies the application version printed by -version. It defaults to "dev" and can be overridden at build time with -ldflags.
+var Version = "dev"
+
 // newLogger creates the application logger used by the bot.
 func newLogger() *slog.Logger {
 	return slog.New(
@@ -22,17 +25,25 @@ func newLogger() *slog.Logger {
 	)
 }
 
+// run validates the startup configuration, initializes the bot, and runs the
+// Telegram update loop until shutdown. It may also return early for non-bot
+// startup flows such as printing the application version.
 func run(logger *slog.Logger) error {
-	// Check system has required dependencies
-	err := ValidateRequiredDependencies()
-	if err != nil {
-		return fmt.Errorf("startup failed while checking dependencies: %w", err)
-	}
-
 	// Parse the flags
 	config, err := ParseConfig(os.Args[1:])
 	if err != nil {
 		return fmt.Errorf("startup failed: invalid configuration: %w", err)
+	}
+
+	if config.PrintVersion {
+		fmt.Printf("gatonaranja %s\n", Version)
+		return nil
+	}
+
+	// Check system has required dependencies
+	err = ValidateRequiredDependencies()
+	if err != nil {
+		return fmt.Errorf("startup failed while checking dependencies: %w", err)
 	}
 
 	// Set up graceful shutdown
@@ -88,7 +99,8 @@ func run(logger *slog.Logger) error {
 	return nil
 }
 
-// main initializes the bot and starts the Telegram update loop.
+// main creates the application logger, runs the program, and exits with the
+// appropriate status code.
 func main() {
 	logger := newLogger()
 

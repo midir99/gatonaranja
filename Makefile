@@ -2,6 +2,8 @@
 
 .DEFAULT_GOAL := help
 
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+
 ## help: print this help message
 help:
 	@echo 'Usage: make <target>'
@@ -10,7 +12,7 @@ help:
 
 ## build: build the gatonaranja binary
 build:
-	go build -o gatonaranja
+	go build -ldflags="-X main.Version=$(VERSION)" -o bin/gatonaranja
 
 
 ## clean: remove Go build artifacts

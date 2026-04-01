@@ -17,6 +17,7 @@ type Config struct {
 	TelegramBotToken       string
 	MaxConcurrentDownloads int
 	DownloadTimeout        time.Duration
+	PrintVersion           bool
 }
 
 // validateAuthorizedUsers parses a comma-separated list of Telegram user IDs,
@@ -115,7 +116,9 @@ func defaultTo(variableValue, variableDefaultValue string) string {
 }
 
 // ParseConfig parses command-line flags, falls back to environment variables
-// when needed, and returns the runtime configuration for the bot.
+// when needed, and returns the runtime configuration for the bot. When the
+// -version flag is provided, it returns a Config with PrintVersion set without
+// validating the rest of the runtime configuration.
 func ParseConfig(args []string) (Config, error) {
 	// Use a FlagSet for easier unit testing
 	fs := flag.NewFlagSet("gatonaranja", flag.ContinueOnError)
@@ -125,6 +128,7 @@ func ParseConfig(args []string) (Config, error) {
 	var telegramBotToken string
 	var maxConcurrentDownloads string
 	var downloadTimeout string
+	var printVersion bool
 
 	fs.StringVar(
 		&authorizedUsers,
@@ -150,9 +154,19 @@ func ParseConfig(args []string) (Config, error) {
 		"",
 		"Maximum time allowed for a single download before it is canceled, for example: 30s, 2m, or 5m (default: 5m; can also be set with DOWNLOAD_TIMEOUT)",
 	)
+	fs.BoolVar(
+		&printVersion,
+		"version",
+		false,
+		"Print the application version and exit",
+	)
 
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
+	}
+
+	if printVersion {
+		return Config{PrintVersion: true}, nil
 	}
 
 	authorizedUsers = flagOrEnv(authorizedUsers, "AUTHORIZED_USERS")

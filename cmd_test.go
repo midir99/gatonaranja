@@ -707,6 +707,28 @@ func TestParseConfig(t *testing.T) {
 			Config{},
 			errors.New("flag needs an argument: -download-timeout"),
 		},
+		{
+			"version flag only",
+			[]string{"-version"},
+			Config{
+				PrintVersion: true,
+			},
+			nil,
+		},
+		{
+			"version flag with other flags",
+			[]string{
+				"-version",
+				"-telegram-bot-token", "123:abc",
+				"-authorized-users", "1,2",
+				"-max-concurrent-downloads", "6",
+				"-download-timeout", "2m",
+			},
+			Config{
+				PrintVersion: true,
+			},
+			nil,
+		},
 	}
 
 	for _, tc := range testCases {
