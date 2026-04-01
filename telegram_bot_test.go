@@ -33,14 +33,23 @@ type fakeTelegramBotClient struct {
 	sendAudioCalls     []sendMediaCall
 }
 
-func (c *fakeTelegramBotClient) ReceiveUpdates(ctx context.Context, offset int64, timeoutSeconds int) ([]TelegramAPIUpdate, error) {
+func (c *fakeTelegramBotClient) ReceiveUpdates(
+	ctx context.Context,
+	offset int64,
+	timeoutSeconds int,
+) ([]TelegramAPIUpdate, error) {
 	if c.receiveUpdatesFunc != nil {
 		return c.receiveUpdatesFunc(ctx, offset, timeoutSeconds)
 	}
 	return nil, nil
 }
 
-func (c *fakeTelegramBotClient) SendText(ctx context.Context, chatID int64, replyToMessageID int64, text string) (*TelegramAPIMessage, error) {
+func (c *fakeTelegramBotClient) SendText(
+	ctx context.Context,
+	chatID int64,
+	replyToMessageID int64,
+	text string,
+) (*TelegramAPIMessage, error) {
 	c.sendTextCalls = append(c.sendTextCalls, sendTextCall{
 		chatID:           chatID,
 		replyToMessageID: replyToMessageID,
@@ -52,7 +61,12 @@ func (c *fakeTelegramBotClient) SendText(ctx context.Context, chatID int64, repl
 	return &TelegramAPIMessage{MessageID: 1, Chat: TelegramAPIChat{ID: chatID}, Text: text}, nil
 }
 
-func (c *fakeTelegramBotClient) SendVideo(ctx context.Context, chatID int64, replyToMessageID int64, videoPath string) (*TelegramAPIMessage, error) {
+func (c *fakeTelegramBotClient) SendVideo(
+	ctx context.Context,
+	chatID int64,
+	replyToMessageID int64,
+	videoPath string,
+) (*TelegramAPIMessage, error) {
 	c.sendVideoCalls = append(c.sendVideoCalls, sendMediaCall{
 		chatID:           chatID,
 		replyToMessageID: replyToMessageID,
@@ -64,7 +78,12 @@ func (c *fakeTelegramBotClient) SendVideo(ctx context.Context, chatID int64, rep
 	return &TelegramAPIMessage{MessageID: 1, Chat: TelegramAPIChat{ID: chatID}}, nil
 }
 
-func (c *fakeTelegramBotClient) SendAudio(ctx context.Context, chatID int64, replyToMessageID int64, audioPath string) (*TelegramAPIMessage, error) {
+func (c *fakeTelegramBotClient) SendAudio(
+	ctx context.Context,
+	chatID int64,
+	replyToMessageID int64,
+	audioPath string,
+) (*TelegramAPIMessage, error) {
 	c.sendAudioCalls = append(c.sendAudioCalls, sendMediaCall{
 		chatID:           chatID,
 		replyToMessageID: replyToMessageID,
@@ -170,7 +189,14 @@ func TestNewDownloadRequestHandler(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			handler, err := NewDownloadRequestHandler(tc.client, tc.logger, []int64{777}, 2*time.Minute, tc.slots, tc.wg)
+			handler, err := NewDownloadRequestHandler(
+				tc.client,
+				tc.logger,
+				[]int64{777},
+				2*time.Minute,
+				tc.slots,
+				tc.wg,
+			)
 			if tc.wantErr != "" {
 				if err == nil {
 					t.Fatalf("NewDownloadRequestHandler() error = nil, want %q", tc.wantErr)
@@ -470,7 +496,14 @@ func TestDownloadRequestHandlerHandleUpdateUnauthorizedUser(t *testing.T) {
 
 func TestDownloadRequestHandlerHandleUpdateIgnoresNilMessage(t *testing.T) {
 	client := &fakeTelegramBotClient{}
-	handler, err := NewDownloadRequestHandler(client, newTestLogger(), []int64{777}, time.Minute, make(chan struct{}, 1), &sync.WaitGroup{})
+	handler, err := NewDownloadRequestHandler(
+		client,
+		newTestLogger(),
+		[]int64{777},
+		time.Minute,
+		make(chan struct{}, 1),
+		&sync.WaitGroup{},
+	)
 	if err != nil {
 		t.Fatalf("NewDownloadRequestHandler() error = %v, want nil", err)
 	}
@@ -486,7 +519,14 @@ func TestDownloadRequestHandlerHandleUpdateIgnoresNilMessage(t *testing.T) {
 
 func TestDownloadRequestHandlerHandleUpdateIgnoresNilSender(t *testing.T) {
 	client := &fakeTelegramBotClient{}
-	handler, err := NewDownloadRequestHandler(client, newTestLogger(), []int64{777}, time.Minute, make(chan struct{}, 1), &sync.WaitGroup{})
+	handler, err := NewDownloadRequestHandler(
+		client,
+		newTestLogger(),
+		[]int64{777},
+		time.Minute,
+		make(chan struct{}, 1),
+		&sync.WaitGroup{},
+	)
 	if err != nil {
 		t.Fatalf("NewDownloadRequestHandler() error = %v, want nil", err)
 	}
@@ -511,7 +551,14 @@ func TestDownloadRequestHandlerHandleUpdateIgnoresRequestWhenShutdownInProgress(
 	var buf bytes.Buffer
 	logger := newBufferLogger(&buf)
 	client := &fakeTelegramBotClient{}
-	handler, err := NewDownloadRequestHandler(client, logger, []int64{777}, time.Minute, make(chan struct{}, 1), &sync.WaitGroup{})
+	handler, err := NewDownloadRequestHandler(
+		client,
+		logger,
+		[]int64{777},
+		time.Minute,
+		make(chan struct{}, 1),
+		&sync.WaitGroup{},
+	)
 	if err != nil {
 		t.Fatalf("NewDownloadRequestHandler() error = %v, want nil", err)
 	}
@@ -840,7 +887,12 @@ func TestRunTelegramBotStopsImmediatelyWhenContextIsCanceled(t *testing.T) {
 		},
 	}
 
-	if err := RunTelegramBot(ctx, client, newTestLogger(), func(context.Context, TelegramAPIUpdate) error { return nil }); err != nil {
+	if err := RunTelegramBot(
+		ctx,
+		client,
+		newTestLogger(),
+		func(context.Context, TelegramAPIUpdate) error { return nil },
+	); err != nil {
 		t.Fatalf("RunTelegramBot() error = %v, want nil", err)
 	}
 }

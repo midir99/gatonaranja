@@ -147,31 +147,41 @@ func TestValidateYouTubeURL(t *testing.T) {
 			"invalid youtu.be nested path",
 			"https://youtu.be/dQw4w9WgXcQ/extra",
 			"",
-			errors.New("invalid YouTube URL: \"https://youtu.be/dQw4w9WgXcQ/extra\": youtu.be path must be \"/<VIDEO_ID>\""),
+			errors.New(
+				"invalid YouTube URL: \"https://youtu.be/dQw4w9WgXcQ/extra\": youtu.be path must be \"/<VIDEO_ID>\"",
+			),
 		},
 		{
 			"invalid path on youtube host",
 			"https://www.youtube.com/channel/UC38IQsAvIsxxjztdMZQtwHA",
 			"",
-			errors.New("invalid YouTube URL: \"https://www.youtube.com/channel/UC38IQsAvIsxxjztdMZQtwHA\": path must be \"/watch\" or \"/shorts/<VIDEO_ID>\""),
+			errors.New(
+				"invalid YouTube URL: \"https://www.youtube.com/channel/UC38IQsAvIsxxjztdMZQtwHA\": path must be \"/watch\" or \"/shorts/<VIDEO_ID>\"",
+			),
 		},
 		{
 			"invalid shorts path without video id",
 			"https://www.youtube.com/shorts/",
 			"",
-			errors.New("invalid YouTube URL: \"https://www.youtube.com/shorts/\": path must be \"/watch\" or \"/shorts/<VIDEO_ID>\""),
+			errors.New(
+				"invalid YouTube URL: \"https://www.youtube.com/shorts/\": path must be \"/watch\" or \"/shorts/<VIDEO_ID>\"",
+			),
 		},
 		{
 			"invalid shorts nested path",
 			"https://www.youtube.com/shorts/dQw4w9WgXcQ/extra",
 			"",
-			errors.New("invalid YouTube URL: \"https://www.youtube.com/shorts/dQw4w9WgXcQ/extra\": path must be \"/watch\" or \"/shorts/<VIDEO_ID>\""),
+			errors.New(
+				"invalid YouTube URL: \"https://www.youtube.com/shorts/dQw4w9WgXcQ/extra\": path must be \"/watch\" or \"/shorts/<VIDEO_ID>\"",
+			),
 		},
 		{
 			"missing v query parameter",
 			"https://www.youtube.com/watch?list=PL123456",
 			"",
-			errors.New("invalid YouTube URL: \"https://www.youtube.com/watch?list=PL123456\": \"v\" query parameter is missing"),
+			errors.New(
+				"invalid YouTube URL: \"https://www.youtube.com/watch?list=PL123456\": \"v\" query parameter is missing",
+			),
 		},
 	}
 	for _, tc := range testCases {
@@ -419,7 +429,7 @@ func TestParseDownloadRequest(t *testing.T) {
 			"https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp",
 			DownloadRequest{},
 			errors.New(
-				"invalid download request: \"https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp\": invalid timestamp range: \"invalidtimestamp\"",
+				"invalid download request: \"https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp\": invalid timestamp range: \"invalidtimestamp\": expected START-END where each value is MM:SS, HH:MM:SS, start, or end",
 			),
 		},
 		{
@@ -427,7 +437,7 @@ func TestParseDownloadRequest(t *testing.T) {
 			"https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp audio",
 			DownloadRequest{},
 			errors.New(
-				"invalid download request: \"https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp audio\": invalid timestamp range: \"invalidtimestamp\"",
+				"invalid download request: \"https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp audio\": invalid timestamp range: \"invalidtimestamp\": expected START-END where each value is MM:SS, HH:MM:SS, start, or end",
 			),
 		},
 		{

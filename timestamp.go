@@ -157,7 +157,11 @@ func SecondsToTimestamp(second int) string {
 // the end time.
 func parseTimestampRangeParts(parts []string, timestampRange string) (int, int, error) {
 	if len(parts) != 2 {
-		return 0, 0, fmt.Errorf("%w: %q: must contain two timestamps", ErrInvalidTimestampRange, timestampRange)
+		return 0, 0, fmt.Errorf(
+			"%w: %q: expected exactly one dash separating the start and end timestamps",
+			ErrInvalidTimestampRange,
+			timestampRange,
+		)
 	}
 
 	startSecond, err := TimestampToSeconds(parts[0])
@@ -173,7 +177,11 @@ func parseTimestampRangeParts(parts []string, timestampRange string) (int, int, 
 	// Skip the start >= end validation when endSecond is EndSecond, since
 	// the actual end of the video is not known yet and will be resolved later.
 	if endSecond != EndSecond && startSecond >= endSecond {
-		return 0, 0, fmt.Errorf("%w: %q: start timestamp must be before end timestamp", ErrInvalidTimestampRange, timestampRange)
+		return 0, 0, fmt.Errorf(
+			"%w: %q: start timestamp must be before end timestamp",
+			ErrInvalidTimestampRange,
+			timestampRange,
+		)
 	}
 
 	return startSecond, endSecond, nil
@@ -186,7 +194,11 @@ func parseTimestampRangeParts(parts []string, timestampRange string) (int, int, 
 // start time is before the end time.
 func TimestampRangeToSeconds(timestampRange string) (int, int, error) {
 	if !TimestampRangePattern.MatchString(timestampRange) {
-		return 0, 0, fmt.Errorf("%w: %q", ErrInvalidTimestampRange, timestampRange)
+		return 0, 0, fmt.Errorf(
+			"%w: %q: expected START-END where each value is MM:SS, HH:MM:SS, start, or end",
+			ErrInvalidTimestampRange,
+			timestampRange,
+		)
 	}
 	parts := strings.Split(timestampRange, "-")
 	return parseTimestampRangeParts(parts, timestampRange)

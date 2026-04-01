@@ -227,7 +227,13 @@ func handleDownloadRequest(
 			"error", err,
 		)
 		if errors.Is(err, ErrTelegramMediaTooLarge) {
-			sendReply(ctx, client, logger, message, "I downloaded it, but the file is too big for me to send on Telegram 😿")
+			sendReply(
+				ctx,
+				client,
+				logger,
+				message,
+				"I downloaded it, but the file is too big for me to send on Telegram 😿",
+			)
 		} else {
 			sendReply(ctx, client, logger, message, "I downloaded it, but I couldn't send it to you 🙀")
 		}
