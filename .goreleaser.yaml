@@ -1,0 +1,34 @@
+version: 2
+
+project_name: gatonaranja
+
+builds:
+  - id: gatonaranja
+    main: .
+    binary: gatonaranja
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.Version={{ .Version }}
+
+archives:
+  - id: gatonaranja
+    ids:
+      - gatonaranja
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    wrap_in_directory: false
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  draft: false
+  prerelease: auto
+
