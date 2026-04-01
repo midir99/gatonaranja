@@ -11,6 +11,8 @@ import (
 const StartSecond = 0
 const EndSecond = -1
 
+var ErrInvalidTimestampRange = errors.New("invalid timestamp range")
+
 // TimestampRangePattern matches the structure of timestamp ranges in
 // MM:SS-MM:SS or HH:MM:SS-HH:MM:SS format, such as:
 //
@@ -151,25 +153,25 @@ func SecondsToTimestamp(second int) string {
 // parseTimestampRangeParts parses the start and end parts of a timestamp range,
 // returns their values in seconds, and validates that the start time is before
 // the end time.
-func parseTimestampRangeParts(parts []string) (int, int, error) {
+func parseTimestampRangeParts(parts []string, timestampRange string) (int, int, error) {
 	if len(parts) != 2 {
-		return 0, 0, fmt.Errorf("invalid timestamp range %v", parts)
+		return 0, 0, fmt.Errorf("%w: %q: must contain two timestamps", ErrInvalidTimestampRange, timestampRange)
 	}
 
 	startSecond, err := TimestampToSeconds(parts[0])
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, fmt.Errorf("%w: %q: %w", ErrInvalidTimestampRange, timestampRange, err)
 	}
 
 	endSecond, err := TimestampToSeconds(parts[1])
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, fmt.Errorf("%w: %q: %w", ErrInvalidTimestampRange, timestampRange, err)
 	}
 
 	// Skip the start >= end validation when endSecond is EndSecond, since
 	// the actual end of the video is not known yet and will be resolved later.
 	if endSecond != EndSecond && startSecond >= endSecond {
-		return 0, 0, errors.New("start timestamp must be before end timestamp")
+		return 0, 0, fmt.Errorf("%w: %q: start timestamp must be before end timestamp", ErrInvalidTimestampRange, timestampRange)
 	}
 
 	return startSecond, endSecond, nil
@@ -182,8 +184,8 @@ func parseTimestampRangeParts(parts []string) (int, int, error) {
 // start time is before the end time.
 func TimestampRangeToSeconds(timestampRange string) (int, int, error) {
 	if !TimestampRangePattern.MatchString(timestampRange) {
-		return 0, 0, fmt.Errorf("invalid timestamp range %q", timestampRange)
+		return 0, 0, fmt.Errorf("%w: %q", ErrInvalidTimestampRange, timestampRange)
 	}
 	parts := strings.Split(timestampRange, "-")
-	return parseTimestampRangeParts(parts)
+	return parseTimestampRangeParts(parts, timestampRange)
 }

@@ -10,9 +10,7 @@ import (
 	"time"
 )
 
-const usageMessage = `I couldn't understand your request 😿
-
-Send only the YouTube link, optionally followed by:
+const usageMessage = `Send only the YouTube link, optionally followed by:
 - a time range written with no spaces around the dash
 - the word audio at the end
 
@@ -117,6 +115,7 @@ func (h *DownloadRequestHandler) HandleUpdate(ctx context.Context, update Telegr
 		"user_name", update.Message.From.UserName,
 		"message_text", update.Message.Text,
 	)
+	// Parse the download request message
 	downloadRequest, err := ParseDownloadRequest(update.Message.Text)
 	if err != nil {
 		h.logger.Warn(
@@ -126,7 +125,17 @@ func (h *DownloadRequestHandler) HandleUpdate(ctx context.Context, update Telegr
 			"message_text", update.Message.Text,
 			"error", err,
 		) // #nosec G706
-		sendReply(ctx, h.client, h.logger, update.Message, usageMessage)
+		switch {
+		case errors.Is(err, ErrInvalidYouTubeURL):
+			sendReply(ctx, h.client, h.logger, update.Message,
+				"That does not look like a valid YouTube video URL 🤔\n\n"+usageMessage)
+		case errors.Is(err, ErrInvalidTimestampRange):
+			sendReply(ctx, h.client, h.logger, update.Message,
+				"I could not understand the time range 🤔\n\n"+usageMessage)
+		default:
+			sendReply(ctx, h.client, h.logger, update.Message,
+				"I could not understand your request 🤔\n\n"+usageMessage)
+		}
 		return nil
 	}
 	// Let the user know you are working on the download

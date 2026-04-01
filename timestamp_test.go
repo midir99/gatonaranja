@@ -511,6 +511,7 @@ func TestSecondsToTimestamp(t *testing.T) {
 func TestParseTimestampRangeParts(t *testing.T) {
 	testCases := []struct {
 		testName        string
+		timestampRange  string
 		parts           []string
 		wantStartSecond int
 		wantEndSecond   int
@@ -518,6 +519,7 @@ func TestParseTimestampRangeParts(t *testing.T) {
 	}{
 		{
 			"happy path mm:ss",
+			"00:00-00:05",
 			[]string{"00:00", "00:05"},
 			0,
 			5,
@@ -525,6 +527,7 @@ func TestParseTimestampRangeParts(t *testing.T) {
 		},
 		{
 			"happy path with start",
+			"start-00:05",
 			[]string{"start", "00:05"},
 			StartSecond,
 			5,
@@ -532,6 +535,7 @@ func TestParseTimestampRangeParts(t *testing.T) {
 		},
 		{
 			"happy path with end",
+			"00:05-end",
 			[]string{"00:05", "end"},
 			5,
 			EndSecond,
@@ -539,6 +543,7 @@ func TestParseTimestampRangeParts(t *testing.T) {
 		},
 		{
 			"happy path start to end",
+			"start-end",
 			[]string{"start", "end"},
 			StartSecond,
 			EndSecond,
@@ -546,57 +551,64 @@ func TestParseTimestampRangeParts(t *testing.T) {
 		},
 		{
 			"invalid parts length zero",
+			"",
 			[]string{},
 			0,
 			0,
-			errors.New("invalid timestamp range []"),
+			errors.New("invalid timestamp range: \"\": must contain two timestamps"),
 		},
 		{
 			"invalid parts length one",
+			"00:05",
 			[]string{"00:05"},
 			0,
 			0,
-			errors.New("invalid timestamp range [00:05]"),
+			errors.New("invalid timestamp range: \"00:05\": must contain two timestamps"),
 		},
 		{
 			"invalid parts length three",
+			"00:05-00:06-00:07",
 			[]string{"00:05", "00:06", "00:07"},
 			0,
 			0,
-			errors.New("invalid timestamp range [00:05 00:06 00:07]"),
+			errors.New("invalid timestamp range: \"00:05-00:06-00:07\": must contain two timestamps"),
 		},
 		{
 			"invalid start timestamp",
+			"invalid-00:05",
 			[]string{"invalid", "00:05"},
 			0,
 			0,
-			errors.New(`invalid timestamp "invalid": expected HH:MM:SS, MM:SS, start, or end`),
+			errors.New("invalid timestamp range: \"invalid-00:05\": invalid timestamp \"invalid\": expected HH:MM:SS, MM:SS, start, or end"),
 		},
 		{
 			"invalid end timestamp",
+			"00:05-invalid",
 			[]string{"00:05", "invalid"},
 			0,
 			0,
-			errors.New(`invalid timestamp "invalid": expected HH:MM:SS, MM:SS, start, or end`),
+			errors.New("invalid timestamp range: \"00:05-invalid\": invalid timestamp \"invalid\": expected HH:MM:SS, MM:SS, start, or end"),
 		},
 		{
 			"same start and end",
+			"00:05-00:05",
 			[]string{"00:05", "00:05"},
 			0,
 			0,
-			errors.New("start timestamp must be before end timestamp"),
+			errors.New("invalid timestamp range: \"00:05-00:05\": start timestamp must be before end timestamp"),
 		},
 		{
 			"start after end",
+			"00:06-00:05",
 			[]string{"00:06", "00:05"},
 			0,
 			0,
-			errors.New("start timestamp must be before end timestamp"),
+			errors.New("invalid timestamp range: \"00:06-00:05\": start timestamp must be before end timestamp"),
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
-			gotStartSecond, gotEndSecond, err := parseTimestampRangeParts(tc.parts)
+			gotStartSecond, gotEndSecond, err := parseTimestampRangeParts(tc.parts, tc.timestampRange)
 			if tc.err != nil && err == nil {
 				t.Fatalf("got nil, want %q", tc.err.Error())
 			}
@@ -661,63 +673,63 @@ func TestTimestampRangeToSeconds(t *testing.T) {
 			"00:05-00:05",
 			0,
 			0,
-			errors.New("start timestamp must be before end timestamp"),
+			errors.New("invalid timestamp range: \"00:05-00:05\": start timestamp must be before end timestamp"),
 		},
 		{
 			"start after end",
 			"00:06-00:05",
 			0,
 			0,
-			errors.New("start timestamp must be before end timestamp"),
+			errors.New("invalid timestamp range: \"00:06-00:05\": start timestamp must be before end timestamp"),
 		},
 		{
 			"invalid start token",
 			"end-00:05",
 			0,
 			0,
-			errors.New(`invalid timestamp range "end-00:05"`),
+			errors.New(`invalid timestamp range: "end-00:05"`),
 		},
 		{
 			"invalid end token",
 			"00:05-start",
 			0,
 			0,
-			errors.New(`invalid timestamp range "00:05-start"`),
+			errors.New(`invalid timestamp range: "00:05-start"`),
 		},
 		{
 			"invalid start value",
 			"invalid-00:05",
 			0,
 			0,
-			errors.New(`invalid timestamp range "invalid-00:05"`),
+			errors.New("invalid timestamp range: \"invalid-00:05\""),
 		},
 		{
 			"invalid end value",
 			"00:05-invalid",
 			0,
 			0,
-			errors.New(`invalid timestamp range "00:05-invalid"`),
+			errors.New("invalid timestamp range: \"00:05-invalid\""),
 		},
 		{
 			"empty string",
 			"",
 			0,
 			0,
-			errors.New(`invalid timestamp range ""`),
+			errors.New("invalid timestamp range: \"\""),
 		},
 		{
 			"missing separator",
 			"00:05",
 			0,
 			0,
-			errors.New(`invalid timestamp range "00:05"`),
+			errors.New("invalid timestamp range: \"00:05\""),
 		},
 		{
 			"too many separators",
 			"00:05-00:06-00:07",
 			0,
 			0,
-			errors.New(`invalid timestamp range "00:05-00:06-00:07"`),
+			errors.New("invalid timestamp range: \"00:05-00:06-00:07\""),
 		},
 	}
 	for _, tc := range testCases {

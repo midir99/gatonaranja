@@ -534,7 +534,7 @@ func TestDownloadRequestHandlerHandleUpdateIgnoresRequestWhenShutdownInProgress(
 	}
 }
 
-func TestDownloadRequestHandlerHandleUpdateParseFailure(t *testing.T) {
+func TestDownloadRequestHandlerHandleUpdateParseFailureYouTubeURL(t *testing.T) {
 	client := &fakeTelegramBotClient{}
 	logger := newTestLogger()
 	downloadSlots := make(chan struct{}, 1)
@@ -557,7 +557,63 @@ func TestDownloadRequestHandlerHandleUpdateParseFailure(t *testing.T) {
 	if got, want := len(client.sendTextCalls), 1; got != want {
 		t.Fatalf("len(sendTextCalls) = %d, want %d", got, want)
 	}
-	if got, want := client.sendTextCalls[0].text, usageMessage; got != want {
+	if got, want := client.sendTextCalls[0].text, "That does not look like a valid YouTube video URL 🤔\n\nSend only the YouTube link, optionally followed by:\n- a time range written with no spaces around the dash\n- the word audio at the end\n\nDo not write the time range like \"1:00 - 1:05\".\n\nSend a message exactly like one of these examples:\n\nhttps://www.youtube.com/watch?v=AqjB8DGt85U\n\nhttps://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05\n\nhttps://www.youtube.com/watch?v=AqjB8DGt85U audio\n\nhttps://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05 audio\n\nYou can also use start or end:\nhttps://www.youtube.com/watch?v=AqjB8DGt85U start-0:10\nhttps://www.youtube.com/watch?v=AqjB8DGt85U 0:10-end"; got != want {
+		t.Fatalf("reply text = %q, want usageMessage", got)
+	}
+}
+
+func TestDownloadRequestHandlerHandleUpdateParseFailureTimestampRange(t *testing.T) {
+	client := &fakeTelegramBotClient{}
+	logger := newTestLogger()
+	downloadSlots := make(chan struct{}, 1)
+	var downloadsWG sync.WaitGroup
+
+	handler, err := NewDownloadRequestHandler(client, logger, []int64{777}, time.Minute, downloadSlots, &downloadsWG)
+	if err != nil {
+		t.Fatalf("NewDownloadRequestHandler() error = %v, want nil", err)
+	}
+
+	update := TelegramAPIUpdate{
+		UpdateID: 1,
+		Message:  newTestMessage("https://www.youtube.com/watch?v=IFbXnS1odNs invalid"),
+	}
+
+	if err := handler.HandleUpdate(context.Background(), update); err != nil {
+		t.Fatalf("HandleUpdate() error = %v, want nil", err)
+	}
+
+	if got, want := len(client.sendTextCalls), 1; got != want {
+		t.Fatalf("len(sendTextCalls) = %d, want %d", got, want)
+	}
+	if got, want := client.sendTextCalls[0].text, "I could not understand the time range 🤔\n\nSend only the YouTube link, optionally followed by:\n- a time range written with no spaces around the dash\n- the word audio at the end\n\nDo not write the time range like \"1:00 - 1:05\".\n\nSend a message exactly like one of these examples:\n\nhttps://www.youtube.com/watch?v=AqjB8DGt85U\n\nhttps://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05\n\nhttps://www.youtube.com/watch?v=AqjB8DGt85U audio\n\nhttps://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05 audio\n\nYou can also use start or end:\nhttps://www.youtube.com/watch?v=AqjB8DGt85U start-0:10\nhttps://www.youtube.com/watch?v=AqjB8DGt85U 0:10-end"; got != want {
+		t.Fatalf("reply text = %q, want usageMessage", got)
+	}
+}
+
+func TestDownloadRequestHandlerHandleUpdateParseFailure(t *testing.T) {
+	client := &fakeTelegramBotClient{}
+	logger := newTestLogger()
+	downloadSlots := make(chan struct{}, 1)
+	var downloadsWG sync.WaitGroup
+
+	handler, err := NewDownloadRequestHandler(client, logger, []int64{777}, time.Minute, downloadSlots, &downloadsWG)
+	if err != nil {
+		t.Fatalf("NewDownloadRequestHandler() error = %v, want nil", err)
+	}
+
+	update := TelegramAPIUpdate{
+		UpdateID: 1,
+		Message:  newTestMessage("https://www.youtube.com/watch?v=IFbXnS1odNs 0:10-end invalid"),
+	}
+
+	if err := handler.HandleUpdate(context.Background(), update); err != nil {
+		t.Fatalf("HandleUpdate() error = %v, want nil", err)
+	}
+
+	if got, want := len(client.sendTextCalls), 1; got != want {
+		t.Fatalf("len(sendTextCalls) = %d, want %d", got, want)
+	}
+	if got, want := client.sendTextCalls[0].text, "I could not understand your request 🤔\n\nSend only the YouTube link, optionally followed by:\n- a time range written with no spaces around the dash\n- the word audio at the end\n\nDo not write the time range like \"1:00 - 1:05\".\n\nSend a message exactly like one of these examples:\n\nhttps://www.youtube.com/watch?v=AqjB8DGt85U\n\nhttps://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05\n\nhttps://www.youtube.com/watch?v=AqjB8DGt85U audio\n\nhttps://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05 audio\n\nYou can also use start or end:\nhttps://www.youtube.com/watch?v=AqjB8DGt85U start-0:10\nhttps://www.youtube.com/watch?v=AqjB8DGt85U 0:10-end"; got != want {
 		t.Fatalf("reply text = %q, want usageMessage", got)
 	}
 }

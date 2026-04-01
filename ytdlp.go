@@ -11,6 +11,11 @@ import (
 	"time"
 )
 
+var (
+	ErrInvalidYouTubeURL      = errors.New("invalid YouTube URL")
+	ErrInvalidDownloadRequest = errors.New("invalid download request")
+)
+
 // MediaKind identifies the type of media to download.
 type MediaKind int
 
@@ -40,40 +45,41 @@ type DownloadRequest struct {
 func validateYouTubeURL(rawURL string) (string, error) {
 	rawURLNoSpaces := strings.TrimSpace(rawURL)
 	if rawURLNoSpaces == "" {
-		return "", fmt.Errorf("invalid URL %q", rawURL)
+		return "", fmt.Errorf("%w: %q", ErrInvalidYouTubeURL, rawURL)
 	}
 
 	parsedURL, err := url.Parse(rawURLNoSpaces)
 	if err != nil {
-		return "", fmt.Errorf("invalid URL %q", rawURL)
+		return "", fmt.Errorf("%w: %q", ErrInvalidYouTubeURL, rawURL)
 	}
 
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return "", fmt.Errorf("invalid URL %q: scheme must be http or https", rawURL)
+		return "", fmt.Errorf("%w: %q: scheme must be http or https", ErrInvalidYouTubeURL, rawURL)
 	}
 
 	host := strings.ToLower(parsedURL.Host)
 	switch host {
 	case "youtu.be":
 		if !isValidYouTubeVideoIDPath("/", parsedURL.Path) {
-			return "", fmt.Errorf(`invalid URL %q: youtu.be path must be "/<VIDEO_ID>"`, rawURL)
+			return "", fmt.Errorf(`%w: %q: youtu.be path must be "/<VIDEO_ID>"`, ErrInvalidYouTubeURL, rawURL)
 		}
 		return sanitizeYouTubeURL(parsedURL), nil
 	case "youtube.com", "www.youtube.com", "music.youtube.com", "m.youtube.com":
 		if parsedURL.Path == "/watch" {
 			query := parsedURL.Query()
 			if query.Get("v") == "" {
-				return "", fmt.Errorf(`invalid URL %q: "v" query parameter is missing`, rawURL)
+				return "", fmt.Errorf(`%w: %q: "v" query parameter is missing`, ErrInvalidYouTubeURL, rawURL)
 			}
 			return sanitizeYouTubeURL(parsedURL), nil
 		} else if isValidYouTubeVideoIDPath("/shorts/", parsedURL.Path) {
 			return sanitizeYouTubeURL(parsedURL), nil
 		} else {
-			return "", fmt.Errorf(`invalid URL %q: path must be "/watch" or "/shorts/<VIDEO_ID>"`, rawURL)
+			return "", fmt.Errorf(`%w: %q: path must be "/watch" or "/shorts/<VIDEO_ID>"`, ErrInvalidYouTubeURL, rawURL)
 		}
 	default:
 		return "", fmt.Errorf(
-			"invalid YouTube URL %q: host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com",
+			"%w: %q: host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com",
+			ErrInvalidYouTubeURL,
 			rawURL,
 		)
 	}
@@ -113,19 +119,13 @@ func sanitizeYouTubeURL(parsedURL *url.URL) string {
 // URL audio, URL TIMESTAMP_RANGE, or URL TIMESTAMP_RANGE audio, and returns
 // the corresponding DownloadRequest.
 func ParseDownloadRequest(downloadRequestString string) (DownloadRequest, error) {
-	invalidDownloadRequestErrTemplate := `invalid download request %q: %w; expected URL [TIMESTAMP_RANGE] [audio]`
-
-	invalidDownloadRequestErr := fmt.Errorf(
-		invalidDownloadRequestErrTemplate,
-		downloadRequestString,
-		errors.New("download request does not follow the format"),
-	)
-
 	args := strings.Fields(downloadRequestString)
 	argsNumber := len(args)
 
 	if argsNumber == 0 {
-		return DownloadRequest{}, invalidDownloadRequestErr
+		return DownloadRequest{}, fmt.Errorf(
+			"%w: %q: expected URL [TIMESTAMP_RANGE] [audio]", ErrInvalidDownloadRequest, downloadRequestString,
+		)
 	}
 
 	downloadRequest := DownloadRequest{
@@ -136,7 +136,7 @@ func ParseDownloadRequest(downloadRequestString string) (DownloadRequest, error)
 
 	videoURL, err := validateYouTubeURL(args[0])
 	if err != nil {
-		return DownloadRequest{}, fmt.Errorf(invalidDownloadRequestErrTemplate, downloadRequestString, err)
+		return DownloadRequest{}, fmt.Errorf("%w: %q: %w", ErrInvalidDownloadRequest, downloadRequestString, err)
 	}
 	downloadRequest.sourceURL = videoURL
 
@@ -155,7 +155,7 @@ func ParseDownloadRequest(downloadRequestString string) (DownloadRequest, error)
 		}
 		startSecond, endSecond, err2 := TimestampRangeToSeconds(args[1])
 		if err2 != nil {
-			return DownloadRequest{}, fmt.Errorf(invalidDownloadRequestErrTemplate, downloadRequestString, err2)
+			return DownloadRequest{}, fmt.Errorf("%w: %q: %w", ErrInvalidDownloadRequest, downloadRequestString, err2)
 		}
 		downloadRequest.startSecond = startSecond
 		downloadRequest.endSecond = endSecond
@@ -165,7 +165,7 @@ func ParseDownloadRequest(downloadRequestString string) (DownloadRequest, error)
 		// Example: https://www.youtube.com/watch?v=J---aiyznGQ start-0:10 audio
 		startSecond, endSecond, err2 := TimestampRangeToSeconds(args[1])
 		if err2 != nil {
-			return DownloadRequest{}, fmt.Errorf(invalidDownloadRequestErrTemplate, downloadRequestString, err2)
+			return DownloadRequest{}, fmt.Errorf("%w: %q: %w", ErrInvalidDownloadRequest, downloadRequestString, err2)
 		}
 		downloadRequest.startSecond = startSecond
 		downloadRequest.endSecond = endSecond
@@ -173,9 +173,13 @@ func ParseDownloadRequest(downloadRequestString string) (DownloadRequest, error)
 			downloadRequest.mediaKind = MediaAudio
 			return downloadRequest, nil
 		}
-		return DownloadRequest{}, invalidDownloadRequestErr
+		return DownloadRequest{}, fmt.Errorf(
+			"%w: %q: expected URL [TIMESTAMP_RANGE] [audio]", ErrInvalidDownloadRequest, downloadRequestString,
+		)
 	default:
-		return DownloadRequest{}, invalidDownloadRequestErr
+		return DownloadRequest{}, fmt.Errorf(
+			"%w: %q: expected URL [TIMESTAMP_RANGE] [audio]", ErrInvalidDownloadRequest, downloadRequestString,
+		)
 	}
 }
 

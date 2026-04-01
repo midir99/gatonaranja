@@ -107,71 +107,71 @@ func TestValidateYouTubeURL(t *testing.T) {
 			"invalid scheme",
 			"ftp://youtu.be/dQw4w9WgXcQ",
 			"",
-			errors.New(`invalid URL "ftp://youtu.be/dQw4w9WgXcQ": scheme must be http or https`),
+			errors.New("invalid YouTube URL: \"ftp://youtu.be/dQw4w9WgXcQ\": scheme must be http or https"),
 		},
 		{
 			"invalid host",
 			"https://vimeo.com/123456",
 			"",
 			errors.New(
-				`invalid YouTube URL "https://vimeo.com/123456": host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com`,
+				"invalid YouTube URL: \"https://vimeo.com/123456\": host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com",
 			),
 		},
 		{
 			"malformed url",
 			"://youtube.com",
 			"",
-			errors.New(`invalid URL "://youtube.com"`),
+			errors.New("invalid YouTube URL: \"://youtube.com\""),
 		},
 		{
 			"empty url",
 			"",
 			"",
-			errors.New(`invalid URL ""`),
+			errors.New("invalid YouTube URL: \"\""),
 		},
 		{
 			"subdomain not allowed",
 			"https://gaming.youtube.com/watch?v=dQw4w9WgXcQ",
 			"",
 			errors.New(
-				`invalid YouTube URL "https://gaming.youtube.com/watch?v=dQw4w9WgXcQ": host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com`,
+				"invalid YouTube URL: \"https://gaming.youtube.com/watch?v=dQw4w9WgXcQ\": host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com",
 			),
 		},
 		{
 			"invalid youtu.be path without video id",
 			"https://youtu.be/",
 			"",
-			errors.New(`invalid URL "https://youtu.be/": youtu.be path must be "/<VIDEO_ID>"`),
+			errors.New("invalid YouTube URL: \"https://youtu.be/\": youtu.be path must be \"/<VIDEO_ID>\""),
 		},
 		{
 			"invalid youtu.be nested path",
 			"https://youtu.be/dQw4w9WgXcQ/extra",
 			"",
-			errors.New(`invalid URL "https://youtu.be/dQw4w9WgXcQ/extra": youtu.be path must be "/<VIDEO_ID>"`),
+			errors.New("invalid YouTube URL: \"https://youtu.be/dQw4w9WgXcQ/extra\": youtu.be path must be \"/<VIDEO_ID>\""),
 		},
 		{
 			"invalid path on youtube host",
 			"https://www.youtube.com/channel/UC38IQsAvIsxxjztdMZQtwHA",
 			"",
-			errors.New(`invalid URL "https://www.youtube.com/channel/UC38IQsAvIsxxjztdMZQtwHA": path must be "/watch" or "/shorts/<VIDEO_ID>"`),
+			errors.New("invalid YouTube URL: \"https://www.youtube.com/channel/UC38IQsAvIsxxjztdMZQtwHA\": path must be \"/watch\" or \"/shorts/<VIDEO_ID>\""),
 		},
 		{
 			"invalid shorts path without video id",
 			"https://www.youtube.com/shorts/",
 			"",
-			errors.New(`invalid URL "https://www.youtube.com/shorts/": path must be "/watch" or "/shorts/<VIDEO_ID>"`),
+			errors.New("invalid YouTube URL: \"https://www.youtube.com/shorts/\": path must be \"/watch\" or \"/shorts/<VIDEO_ID>\""),
 		},
 		{
 			"invalid shorts nested path",
 			"https://www.youtube.com/shorts/dQw4w9WgXcQ/extra",
 			"",
-			errors.New(`invalid URL "https://www.youtube.com/shorts/dQw4w9WgXcQ/extra": path must be "/watch" or "/shorts/<VIDEO_ID>"`),
+			errors.New("invalid YouTube URL: \"https://www.youtube.com/shorts/dQw4w9WgXcQ/extra\": path must be \"/watch\" or \"/shorts/<VIDEO_ID>\""),
 		},
 		{
 			"missing v query parameter",
 			"https://www.youtube.com/watch?list=PL123456",
 			"",
-			errors.New(`invalid URL "https://www.youtube.com/watch?list=PL123456": "v" query parameter is missing`),
+			errors.New("invalid YouTube URL: \"https://www.youtube.com/watch?list=PL123456\": \"v\" query parameter is missing"),
 		},
 	}
 	for _, tc := range testCases {
@@ -392,7 +392,7 @@ func TestParseDownloadRequest(t *testing.T) {
 			"",
 			DownloadRequest{},
 			errors.New(
-				`invalid download request "": download request does not follow the format; expected URL [TIMESTAMP_RANGE] [audio]`,
+				"invalid download request: \"\": expected URL [TIMESTAMP_RANGE] [audio]",
 			),
 		},
 		{
@@ -400,7 +400,7 @@ func TestParseDownloadRequest(t *testing.T) {
 			"https://gaming.youtube.com/watch?v=dQw4w9WgXcQ",
 			DownloadRequest{},
 			errors.New(
-				`invalid download request "https://gaming.youtube.com/watch?v=dQw4w9WgXcQ": invalid YouTube URL "https://gaming.youtube.com/watch?v=dQw4w9WgXcQ": host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com; expected URL [TIMESTAMP_RANGE] [audio]`,
+				"invalid download request: \"https://gaming.youtube.com/watch?v=dQw4w9WgXcQ\": invalid YouTube URL: \"https://gaming.youtube.com/watch?v=dQw4w9WgXcQ\": host must be youtube.com, www.youtube.com, music.youtube.com, youtu.be or m.youtube.com",
 			),
 		},
 		{
@@ -408,7 +408,7 @@ func TestParseDownloadRequest(t *testing.T) {
 			"https://www.youtube.com/watch?list=PL123456",
 			DownloadRequest{},
 			errors.New(
-				`invalid download request "https://www.youtube.com/watch?list=PL123456": invalid URL "https://www.youtube.com/watch?list=PL123456": "v" query parameter is missing; expected URL [TIMESTAMP_RANGE] [audio]`,
+				"invalid download request: \"https://www.youtube.com/watch?list=PL123456\": invalid YouTube URL: \"https://www.youtube.com/watch?list=PL123456\": \"v\" query parameter is missing",
 			),
 		},
 		{
@@ -416,7 +416,7 @@ func TestParseDownloadRequest(t *testing.T) {
 			"https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp",
 			DownloadRequest{},
 			errors.New(
-				`invalid download request "https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp": invalid timestamp range "invalidtimestamp"; expected URL [TIMESTAMP_RANGE] [audio]`,
+				"invalid download request: \"https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp\": invalid timestamp range: \"invalidtimestamp\"",
 			),
 		},
 		{
@@ -424,7 +424,7 @@ func TestParseDownloadRequest(t *testing.T) {
 			"https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp audio",
 			DownloadRequest{},
 			errors.New(
-				`invalid download request "https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp audio": invalid timestamp range "invalidtimestamp"; expected URL [TIMESTAMP_RANGE] [audio]`,
+				"invalid download request: \"https://www.youtube.com/watch?v=8v_kBIIGViY invalidtimestamp audio\": invalid timestamp range: \"invalidtimestamp\"",
 			),
 		},
 		{
@@ -432,7 +432,7 @@ func TestParseDownloadRequest(t *testing.T) {
 			"https://www.youtube.com/watch?v=8v_kBIIGViY 2:45-2:53 invalidaudio",
 			DownloadRequest{},
 			errors.New(
-				`invalid download request "https://www.youtube.com/watch?v=8v_kBIIGViY 2:45-2:53 invalidaudio": download request does not follow the format; expected URL [TIMESTAMP_RANGE] [audio]`,
+				"invalid download request: \"https://www.youtube.com/watch?v=8v_kBIIGViY 2:45-2:53 invalidaudio\": expected URL [TIMESTAMP_RANGE] [audio]",
 			),
 		},
 		{
@@ -440,7 +440,7 @@ func TestParseDownloadRequest(t *testing.T) {
 			"https://www.youtube.com/watch?v=8v_kBIIGViY 2:45-2:53 audio anotherinvalidparameter",
 			DownloadRequest{},
 			errors.New(
-				`invalid download request "https://www.youtube.com/watch?v=8v_kBIIGViY 2:45-2:53 audio anotherinvalidparameter": download request does not follow the format; expected URL [TIMESTAMP_RANGE] [audio]`,
+				"invalid download request: \"https://www.youtube.com/watch?v=8v_kBIIGViY 2:45-2:53 audio anotherinvalidparameter\": expected URL [TIMESTAMP_RANGE] [audio]",
 			),
 		},
 	}
