@@ -741,6 +741,9 @@ func TestTimestampRangeToSeconds(t *testing.T) {
 			if tc.err != nil && err != nil && tc.err.Error() != err.Error() {
 				t.Fatalf("got %q, want %q", err.Error(), tc.err.Error())
 			}
+			if tc.err != nil && !errors.Is(err, ErrInvalidTimestampRange) {
+				t.Fatalf("errors.Is(%v, ErrInvalidTimestampRange) = false, want true", err)
+			}
 			if gotStartSecond != tc.wantStartSecond {
 				t.Fatalf("got %d, want %d", gotStartSecond, tc.wantStartSecond)
 			}

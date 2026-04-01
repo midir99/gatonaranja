@@ -11,6 +11,8 @@ import (
 const StartSecond = 0
 const EndSecond = -1
 
+// ErrInvalidTimestampRange reports that a timestamp range is malformed or
+// semantically invalid.
 var ErrInvalidTimestampRange = errors.New("invalid timestamp range")
 
 // TimestampRangePattern matches the structure of timestamp ranges in

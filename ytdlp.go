@@ -12,7 +12,11 @@ import (
 )
 
 var (
-	ErrInvalidYouTubeURL      = errors.New("invalid YouTube URL")
+	// ErrInvalidYouTubeURL reports that a YouTube URL is malformed or uses an
+	// unsupported host, path, or query shape.
+	ErrInvalidYouTubeURL = errors.New("invalid YouTube URL")
+	// ErrInvalidDownloadRequest reports that a download request does not follow the
+	// expected input format.
 	ErrInvalidDownloadRequest = errors.New("invalid download request")
 )
 

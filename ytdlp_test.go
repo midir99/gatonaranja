@@ -183,6 +183,9 @@ func TestValidateYouTubeURL(t *testing.T) {
 			if tc.err != nil && err != nil && tc.err.Error() != err.Error() {
 				t.Fatalf("got %q, want %q", err.Error(), tc.err.Error())
 			}
+			if tc.err != nil && !errors.Is(err, ErrInvalidYouTubeURL) {
+				t.Fatalf("errors.Is(%v, ErrInvalidYouTubeURL) = false, want true", err)
+			}
 			if got != tc.want {
 				t.Fatalf("got %q, want %q", got, tc.want)
 			}
@@ -452,6 +455,9 @@ func TestParseDownloadRequest(t *testing.T) {
 			}
 			if tc.err != nil && err != nil && tc.err.Error() != err.Error() {
 				t.Fatalf("got %q, want %q", err.Error(), tc.err.Error())
+			}
+			if tc.err != nil && !errors.Is(err, ErrInvalidDownloadRequest) {
+				t.Fatalf("errors.Is(%v, ErrInvalidDownloadRequest) = false, want true", err)
 			}
 			if got.startSecond != tc.wantDownloadRequest.startSecond {
 				t.Fatalf("got %d, want %d", got.startSecond, tc.wantDownloadRequest.startSecond)
