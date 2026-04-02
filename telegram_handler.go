@@ -3,17 +3,43 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 )
+
+const (
+	telegramSendGrace = 30 * time.Second
+)
+
+const usageMessage = `Send only the YouTube link, optionally followed by:
+- a time range written with no spaces around the dash
+- the word audio at the end
+
+Do not write the time range like "1:00 - 1:05".
+
+Send a message exactly like one of these examples:
+
+https://www.youtube.com/watch?v=AqjB8DGt85U
+
+https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05
+
+https://www.youtube.com/watch?v=AqjB8DGt85U audio
+
+https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05 audio
+
+You can also use start or end:
+https://www.youtube.com/watch?v=AqjB8DGt85U start-0:10
+https://www.youtube.com/watch?v=AqjB8DGt85U 0:10-end`
 
 type DownloadJob struct {
 	Message         *TelegramAPIMessage
 	DownloadRequest DownloadRequest
 }
 
-type DownloadRequestHandlerWP struct {
+type DownloadRequestHandler struct {
 	client          TelegramBotClient
 	logger          *slog.Logger
 	authorizedUsers []int64
@@ -22,14 +48,14 @@ type DownloadRequestHandlerWP struct {
 	downloadsWG     *sync.WaitGroup
 }
 
-func NewDownloadRequestHandlerWP(
+func NewDownloadRequestHandler(
 	client TelegramBotClient,
 	logger *slog.Logger,
 	authorizedUsers []int64,
 	downloadTimeout time.Duration,
 	downloadQueue chan DownloadJob,
 	downloadsWG *sync.WaitGroup,
-) (*DownloadRequestHandlerWP, error) {
+) (*DownloadRequestHandler, error) {
 	if client == nil {
 		return nil, errors.New("telegram bot client is required")
 	}
@@ -43,7 +69,7 @@ func NewDownloadRequestHandlerWP(
 		return nil, errors.New("downloads wait group is required")
 	}
 
-	return &DownloadRequestHandlerWP{
+	return &DownloadRequestHandler{
 		client:          client,
 		logger:          logger,
 		authorizedUsers: authorizedUsers,
@@ -53,7 +79,7 @@ func NewDownloadRequestHandlerWP(
 	}, nil
 }
 
-func (h *DownloadRequestHandlerWP) HandleUpdate(ctx context.Context, update TelegramAPIUpdate) error {
+func (h *DownloadRequestHandler) HandleUpdate(ctx context.Context, update TelegramAPIUpdate) error {
 	// Check if update is a message
 	if update.Message == nil || update.Message.From == nil {
 		return nil
@@ -175,4 +201,104 @@ func downloadWorker(
 		)
 		wg.Done()
 	}
+}
+
+var removeFile = os.Remove
+
+func handleDownloadRequest(
+	ctx context.Context,
+	client TelegramBotClient,
+	logger *slog.Logger,
+	message *TelegramAPIMessage,
+	mediaDownloader MediaDownloader,
+	downloadTimeout time.Duration,
+) {
+	downloadCtx, cancelDownload := context.WithTimeout(ctx, downloadTimeout)
+	defer cancelDownload()
+
+	sendCtx, cancelSend := context.WithTimeout(ctx, telegramSendGrace)
+	defer cancelSend()
+
+	mediaFilename, err := mediaDownloader.Download(downloadCtx)
+
+	if err != nil {
+		logger.Error(
+			"Failed to download request",
+			"user_id", message.From.ID,
+			"user_name", message.From.UserName,
+			"message_text", message.Text,
+			"error", err,
+		)
+		sendReply(sendCtx, client, logger, message, "I could not download your request 😿")
+		return
+	}
+
+	switch mediaDownloader.MediaKind() {
+	case MediaAudio:
+		_, err = client.SendAudio(sendCtx, message.Chat.ID, message.MessageID, mediaFilename)
+	case MediaVideo:
+		_, err = client.SendVideo(sendCtx, message.Chat.ID, message.MessageID, mediaFilename)
+	default:
+		err = fmt.Errorf("unsupported media kind %v", mediaDownloader.MediaKind())
+	}
+	if err == nil {
+		logger.Info(
+			"Completed request",
+			"user_id", message.From.ID,
+			"user_name", message.From.UserName,
+			"message_text", message.Text,
+		)
+	} else {
+		logger.Error(
+			"Failed to send media",
+			"user_id", message.From.ID,
+			"user_name", message.From.UserName,
+			"message_text", message.Text,
+			"error", err,
+		)
+		if errors.Is(err, ErrTelegramMediaTooLarge) {
+			sendReply(
+				sendCtx,
+				client,
+				logger,
+				message,
+				"I downloaded it, but the file is too big for me to send on Telegram 😿",
+			)
+		} else {
+			sendReply(sendCtx, client, logger, message, "I downloaded it, but I couldn't send it to you 🙀")
+		}
+	}
+	err = removeFile(mediaFilename)
+	if err != nil {
+		logger.Warn(
+			"Failed to remove downloaded file",
+			"user_id", message.From.ID,
+			"user_name", message.From.UserName,
+			"file_name", mediaFilename,
+			"error", err,
+		)
+	}
+}
+
+func sendReply(
+	ctx context.Context,
+	bot TelegramBotClient,
+	logger *slog.Logger,
+	message *TelegramAPIMessage,
+	text string,
+) {
+	_, err := bot.SendText(ctx, message.Chat.ID, message.MessageID, text)
+	if err != nil {
+		logTelegramSendError(logger, message.From.UserName, message.From.ID, err)
+	}
+}
+
+// logTelegramSendError logs a Telegram send failure for the given user.
+func logTelegramSendError(logger *slog.Logger, userName string, userID int64, err error) {
+	logger.Error(
+		"Failed to send Telegram message",
+		"user_id", userID,
+		"user_name", userName,
+		"error", err,
+	) // #nosec G706
 }
