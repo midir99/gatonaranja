@@ -16,6 +16,7 @@ type Config struct {
 	AuthorizedUsers        []int64
 	TelegramBotToken       string
 	MaxConcurrentDownloads int
+	MaxQueuedDownloads     int
 	DownloadTimeout        time.Duration
 	PrintVersion           bool
 }
@@ -74,6 +75,25 @@ func validateMaxConcurrentDownloads(maxConcurrentDownloads string) (int, error) 
 	return maxConcurrentDownloadsInt, nil
 }
 
+// validateMaxQueuedDownloads parses the maximum number of queued
+// downloads and validates that it is between 1 and 100.
+func validateMaxQueuedDownloads(maxQueuedDownloads string) (int, error) {
+	invalidErr := fmt.Errorf(
+		"invalid max queued downloads %q: must be between 1 and 100",
+		maxQueuedDownloads,
+	)
+
+	maxQueuedDownloads = strings.TrimSpace(maxQueuedDownloads)
+	maxQueuedDownloadsInt, err := strconv.Atoi(maxQueuedDownloads)
+	if err != nil {
+		return 0, invalidErr
+	}
+	if maxQueuedDownloadsInt <= 0 || maxQueuedDownloadsInt > 100 {
+		return 0, invalidErr
+	}
+	return maxQueuedDownloadsInt, nil
+}
+
 // validateDownloadTimeout parses a download timeout and validates that it is
 // between 1 second and 10 minutes.
 func validateDownloadTimeout(downloadTimeout string) (time.Duration, error) {
@@ -124,11 +144,14 @@ func ParseConfig(args []string) (Config, error) {
 	fs := flag.NewFlagSet("gatonaranja", flag.ContinueOnError)
 
 	// Parse the flags
-	var authorizedUsers string
-	var telegramBotToken string
-	var maxConcurrentDownloads string
-	var downloadTimeout string
-	var printVersion bool
+	var (
+		authorizedUsers        string
+		telegramBotToken       string
+		maxConcurrentDownloads string
+		maxQueuedDownloads     string
+		downloadTimeout        string
+		printVersion           bool
+	)
 
 	fs.StringVar(
 		&authorizedUsers,
@@ -147,6 +170,12 @@ func ParseConfig(args []string) (Config, error) {
 		"max-concurrent-downloads",
 		"",
 		"Maximum number of downloads that can run at the same time (default: 5; can also be set with MAX_CONCURRENT_DOWNLOADS)",
+	)
+	fs.StringVar(
+		&maxQueuedDownloads,
+		"max-queued-downloads",
+		"",
+		"Maximum number of accepted download requests waiting in the queue (default: 5; can also be set with MAX_QUEUED_DOWNLOADS)",
 	)
 	fs.StringVar(
 		&downloadTimeout,
@@ -188,6 +217,13 @@ func ParseConfig(args []string) (Config, error) {
 		return Config{}, err
 	}
 
+	maxQueuedDownloads = flagOrEnv(maxQueuedDownloads, "MAX_QUEUED_DOWNLOADS")
+	maxQueuedDownloads = defaultTo(maxQueuedDownloads, "5")
+	maxQueuedDownloadsInt, err := validateMaxQueuedDownloads(maxQueuedDownloads)
+	if err != nil {
+		return Config{}, err
+	}
+
 	downloadTimeout = flagOrEnv(downloadTimeout, "DOWNLOAD_TIMEOUT")
 	downloadTimeout = defaultTo(downloadTimeout, "5m")
 	downloadTimeoutDuration, err := validateDownloadTimeout(downloadTimeout)
@@ -200,6 +236,7 @@ func ParseConfig(args []string) (Config, error) {
 		AuthorizedUsers:        authorizedUsersArray,
 		TelegramBotToken:       telegramBotToken,
 		MaxConcurrentDownloads: maxConcurrentDownloadsInt,
+		MaxQueuedDownloads:     maxQueuedDownloadsInt,
 		DownloadTimeout:        downloadTimeoutDuration,
 	}
 	return config, nil
