@@ -11,8 +11,37 @@ It is designed to be simple to run as a standalone binary and easy to deploy as 
 - Download audio only
 - Download only an audio clip
 - Restrict bot usage to specific Telegram user IDs
+- Process downloads with a bounded queue and worker pool
 - Run as a simple CLI program
-- Easy to integrate with `systemd`
+- Easy to install as a user-scoped `systemd` service
+
+## Architecture
+
+```text
+Telegram
+   |
+   v
+RunTelegramBot
+   |
+   v
+DownloadRequestHandler
+   |
+   +--> authorize user
+   +--> parse request
+   +--> send immediate reply
+   |
+   v
+bounded download queue
+   |
+   v
+download workers
+   |
+   +--> yt-dlp
+   +--> ffmpeg
+   |
+   v
+send audio/video back to Telegram
+```
 
 ## Requirements
 
@@ -113,13 +142,14 @@ Run the bot with:
 ./gatonaranja -telegram-bot-token "<YOUR_TELEGRAM_BOT_TOKEN>"
 ```
 
-Optionally restrict which Telegram users can use the bot and tune download concurrency and timeout:
+Optionally restrict which Telegram users can use the bot and tune download concurrency, queue size, and timeout:
 
 ```bash
 ./gatonaranja \
   -telegram-bot-token "<YOUR_TELEGRAM_BOT_TOKEN>" \
   -authorized-users "123456789,987654321" \
   -max-concurrent-downloads 5 \
+  -max-queued-downloads 5 \
   -download-timeout 5m
 ```
 
@@ -139,11 +169,19 @@ Optionally restrict which Telegram users can use the bot and tune download concu
   Defaults to `5`.
   Can also be set with `MAX_CONCURRENT_DOWNLOADS`.
 
+- `-max-queued-downloads`
+  Maximum number of accepted download requests waiting in the queue.
+  Defaults to `5`.
+  Can also be set with `MAX_QUEUED_DOWNLOADS`.
+
 - `-download-timeout`
   Maximum time allowed for a single download before it is canceled.
   Accepts Go duration strings such as `30s`, `2m`, or `5m`.
   Defaults to `5m`.
   Can also be set with `DOWNLOAD_TIMEOUT`.
+
+- `-version`
+  Print the application version and exit.
 
 ### Environment Variables
 
@@ -152,6 +190,7 @@ You can provide configuration through environment variables instead of flags:
 - `TELEGRAM_BOT_TOKEN`
 - `AUTHORIZED_USERS`
 - `MAX_CONCURRENT_DOWNLOADS`
+- `MAX_QUEUED_DOWNLOADS`
 - `DOWNLOAD_TIMEOUT`
 
 Example:
@@ -160,6 +199,7 @@ Example:
 export TELEGRAM_BOT_TOKEN="<YOUR_TELEGRAM_BOT_TOKEN>"
 export AUTHORIZED_USERS="123456789,987654321"
 export MAX_CONCURRENT_DOWNLOADS="5"
+export MAX_QUEUED_DOWNLOADS="5"
 export DOWNLOAD_TIMEOUT="5m"
 
 ./gatonaranja
@@ -238,24 +278,40 @@ make lint
 
 ## Running With systemd
 
-`gatonaranja` is intended to work well as a `systemd` service.
+`gatonaranja` is intended to work well as a user-scoped `systemd` service.
 
-A typical deployment flow is:
+Recommended paths for the user service setup are:
 
-1. Build the binary
-2. Copy the binary to a directory such as `/usr/local/bin`
-3. Create a dedicated service user
-4. Configure the Telegram token and authorized users
-5. Install and enable a `systemd` service unit
+- binary: `~/.local/bin/gatonaranja`
+- working directory: `~/.local/share/gatonaranja`
+- env file: `~/.config/gatonaranja/gatonaranja.env`
+- service unit: `~/.config/systemd/user/gatonaranja.service`
 
-Example service usage will be documented once the service installation flow is finalized.
+The easiest way to install this layout is:
+
+```bash
+./install.sh
+```
+
+If you are installing manually, reload and enable the user service with:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now gatonaranja
+```
+
+If you want the service to keep running after logout, enable linger:
+
+```bash
+loginctl enable-linger "$USER"
+```
 
 ## Logging
 
 When run under `systemd`, logs can be viewed with:
 
 ```bash
-journalctl -u gatonaranja
+journalctl --user-unit=gatonaranja.service -f
 ```
 
 ## Security Notes
