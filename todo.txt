@@ -9,6 +9,9 @@
 - Fix indentation for install.sh and uninstall.sh script
 - Add Dockerfile for people that wants to use Docker
 - Enhance README with link to actual Telegram bot and some badges
+- Add internazionalization
+- Change the filename of the downloaded video
+- Check with AI that descriptions, doc strings and readme match
 
 telegram.go (line 258): the current “goroutine per request + semaphore inside goroutine” pattern keeps the update loop responsive, but it still allows an unbounded number of waiting goroutines if many requests arrive while all 5 slots are busy. That’s fine for a small/private bot, but if usage grows, a bounded worker queue would be safer than unlimited parked goroutines.
 

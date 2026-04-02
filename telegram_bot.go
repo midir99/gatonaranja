@@ -84,6 +84,8 @@ func NewDownloadRequestHandler(
 	}, nil
 }
 
+const telegramSendGrace = 30 * time.Second
+
 func (h *DownloadRequestHandler) HandleUpdate(ctx context.Context, update TelegramAPIUpdate) error {
 	if update.Message == nil || update.Message.From == nil {
 		return nil
@@ -145,7 +147,6 @@ func (h *DownloadRequestHandler) HandleUpdate(ctx context.Context, update Telegr
 		h.client,
 		h.logger,
 		update.Message,
-		h.downloadTimeout,
 		h.downloadSlots,
 		downloadRequest,
 		h.downloadsWG,
@@ -158,7 +159,6 @@ var dispatchDownloadRequest = func(
 	bot TelegramBotClient,
 	logger *slog.Logger,
 	message *TelegramAPIMessage,
-	downloadTimeout time.Duration,
 	downloadSlots chan struct{},
 	mediaDownloader MediaDownloader,
 	downloadsWG *sync.WaitGroup,
@@ -176,7 +176,7 @@ var dispatchDownloadRequest = func(
 		}
 		defer func() { <-downloadSlots }()
 
-		handleDownloadRequest(ctx, bot, logger, message, mediaDownloader, downloadTimeout)
+		handleDownloadRequest(ctx, bot, logger, message, mediaDownloader)
 	})
 }
 
@@ -190,7 +190,14 @@ func handleDownloadRequest(
 	mediaDownloader MediaDownloader,
 	downloadTimeout time.Duration,
 ) {
-	mediaFilename, err := mediaDownloader.Download(ctx, downloadTimeout)
+	downloadCtx, cancelDownload := context.WithTimeout(ctx, downloadTimeout)
+	defer cancelDownload()
+
+	sendCtx, cancelSend := context.WithTimeout(ctx, telegramSendGrace)
+	defer cancelSend()
+
+	mediaFilename, err := mediaDownloader.Download(downloadCtx)
+
 	if err != nil {
 		logger.Error(
 			"Failed to download request",
@@ -199,15 +206,15 @@ func handleDownloadRequest(
 			"message_text", message.Text,
 			"error", err,
 		)
-		sendReply(ctx, client, logger, message, "I could not download your request 😿")
+		sendReply(sendCtx, client, logger, message, "I could not download your request 😿")
 		return
 	}
 
 	switch mediaDownloader.MediaKind() {
 	case MediaAudio:
-		_, err = client.SendAudio(ctx, message.Chat.ID, message.MessageID, mediaFilename)
+		_, err = client.SendAudio(sendCtx, message.Chat.ID, message.MessageID, mediaFilename)
 	case MediaVideo:
-		_, err = client.SendVideo(ctx, message.Chat.ID, message.MessageID, mediaFilename)
+		_, err = client.SendVideo(sendCtx, message.Chat.ID, message.MessageID, mediaFilename)
 	default:
 		err = fmt.Errorf("unsupported media kind %v", mediaDownloader.MediaKind())
 	}
@@ -228,14 +235,14 @@ func handleDownloadRequest(
 		)
 		if errors.Is(err, ErrTelegramMediaTooLarge) {
 			sendReply(
-				ctx,
+				sendCtx,
 				client,
 				logger,
 				message,
 				"I downloaded it, but the file is too big for me to send on Telegram 😿",
 			)
 		} else {
-			sendReply(ctx, client, logger, message, "I downloaded it, but I couldn't send it to you 🙀")
+			sendReply(sendCtx, client, logger, message, "I downloaded it, but I couldn't send it to you 🙀")
 		}
 	}
 	err = removeFile(mediaFilename)
