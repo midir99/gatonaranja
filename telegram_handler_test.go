@@ -158,6 +158,46 @@ func waitForWaitGroup(t *testing.T, wg *sync.WaitGroup) {
 	}
 }
 
+type secondDoneCanceledContext struct {
+	context.Context
+	mu         sync.Mutex
+	doneCalls  int
+	openDone   chan struct{}
+	closedDone chan struct{}
+}
+
+func newSecondDoneCanceledContext() *secondDoneCanceledContext {
+	closedDone := make(chan struct{})
+	close(closedDone)
+
+	return &secondDoneCanceledContext{
+		Context:    context.Background(),
+		openDone:   make(chan struct{}),
+		closedDone: closedDone,
+	}
+}
+
+func (c *secondDoneCanceledContext) Done() <-chan struct{} {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.doneCalls++
+	if c.doneCalls == 1 {
+		return c.openDone
+	}
+	return c.closedDone
+}
+
+func (c *secondDoneCanceledContext) Err() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.doneCalls >= 2 {
+		return context.Canceled
+	}
+	return nil
+}
+
 func TestNewDownloadRequestHandler(t *testing.T) {
 	logger := newHandlerTestLogger()
 	downloadQueue := make(chan DownloadJob, 1)
@@ -489,6 +529,40 @@ func TestDownloadRequestHandlerHandleUpdateRejectsWhenQueueIsFull(t *testing.T) 
 		t.Fatalf("len(sendTextCalls) = %d, want %d", got, want)
 	}
 	if got, want := client.sendTextCalls[0].text, "I'm too busy right now, please try again later 😵"; got != want {
+		t.Fatalf("reply text = %q, want %q", got, want)
+	}
+	waitForWaitGroup(t, &downloadsWG)
+}
+
+func TestDownloadRequestHandlerHandleUpdateRejectsWhenShutdownStartsBeforeEnqueue(t *testing.T) {
+	client := &handlerTestBotClient{}
+	downloadQueue := make(chan DownloadJob)
+	var downloadsWG sync.WaitGroup
+	handler, err := NewDownloadRequestHandler(
+		client,
+		newHandlerTestLogger(),
+		[]int64{777},
+		time.Minute,
+		downloadQueue,
+		&downloadsWG,
+	)
+	if err != nil {
+		t.Fatalf("NewDownloadRequestHandler() error = %v, want nil", err)
+	}
+
+	ctx := newSecondDoneCanceledContext()
+	err = handler.HandleUpdate(ctx, TelegramAPIUpdate{
+		UpdateID: 1,
+		Message:  newHandlerTestMessage("https://www.youtube.com/watch?v=AqjB8DGt85U"),
+	})
+	if err != nil {
+		t.Fatalf("HandleUpdate() error = %v, want nil", err)
+	}
+
+	if got, want := len(client.sendTextCalls), 1; got != want {
+		t.Fatalf("len(sendTextCalls) = %d, want %d", got, want)
+	}
+	if got, want := client.sendTextCalls[0].text, "Not now, it's my time to sleep 😌"; got != want {
 		t.Fatalf("reply text = %q, want %q", got, want)
 	}
 	waitForWaitGroup(t, &downloadsWG)
