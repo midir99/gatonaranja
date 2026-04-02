@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestValidateYouTubeURL(t *testing.T) {
@@ -1123,7 +1122,7 @@ func TestDownloadRequestDownload(t *testing.T) {
 			defer func() {
 				commandContext = productionCommandContext
 			}()
-			got, err := tc.downloadRequest.Download(context.Background(), time.Minute)
+			got, err := tc.downloadRequest.Download(context.Background())
 			if !tc.wantErr && err != nil {
 				t.Fatalf("got error %q, want nil", err.Error())
 			}
@@ -1159,7 +1158,7 @@ func TestDownloadRequestDownload(t *testing.T) {
 			endSecond:   EndSecond,
 			sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 			mediaKind:   MediaVideo,
-		}.Download(ctx, time.Minute)
+		}.Download(ctx)
 
 		if err == nil {
 			t.Fatal("got nil error, want error")
