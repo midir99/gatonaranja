@@ -5,6 +5,7 @@ import (
 	"os/exec"
 )
 
+// lookPath is a test seam for dependency lookup.
 var lookPath = exec.LookPath
 
 // ValidateRequiredDependencies verifies that the external commands

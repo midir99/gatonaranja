@@ -16,10 +16,15 @@ import (
 	"strings"
 )
 
+// telegramAPIBaseURL is the base URL for Telegram Bot API HTTP requests.
 const telegramAPIBaseURL = "https://api.telegram.org"
 
+// telegramBotMaxUploadSizeBytes is the current Telegram Bot API upload limit
+// enforced before attempting media uploads.
 const telegramBotMaxUploadSizeBytes = 50 * 1024 * 1024
 
+// ErrTelegramMediaTooLarge reports that a media file exceeds Telegram's bot
+// upload size limit.
 var ErrTelegramMediaTooLarge = errors.New("telegram media file is too large")
 
 // TelegramAPIClient is a small stdlib-only client for the Telegram Bot API.
@@ -158,6 +163,8 @@ func (c *TelegramAPIClient) SendAudio(
 	return &message, nil
 }
 
+// get sends a Telegram Bot API GET request for the given method and decodes the
+// response into result.
 func (c *TelegramAPIClient) get(
 	ctx context.Context,
 	method string,
@@ -176,6 +183,8 @@ func (c *TelegramAPIClient) get(
 	return c.do(req, result)
 }
 
+// postJSON sends a Telegram Bot API POST request with a JSON payload and
+// decodes the response into result.
 func (c *TelegramAPIClient) postJSON(
 	ctx context.Context,
 	method string,
@@ -196,6 +205,8 @@ func (c *TelegramAPIClient) postJSON(
 	return c.do(req, result)
 }
 
+// sendMedia uploads a local media file to Telegram using the given Bot API
+// method and multipart field name.
 func (c *TelegramAPIClient) sendMedia(
 	ctx context.Context,
 	method string,
@@ -261,6 +272,8 @@ func (c *TelegramAPIClient) sendMedia(
 	return nil
 }
 
+// streamTelegramMediaBody builds a multipart Telegram upload body and streams
+// it through a pipe while the HTTP client consumes it.
 func streamTelegramMediaBody(
 	file *os.File,
 	fieldName string,
@@ -312,6 +325,8 @@ func streamTelegramMediaBody(
 	return bodyReader, writer.FormDataContentType(), uploadErrCh
 }
 
+// do executes a Telegram Bot API request, validates the HTTP and API-level
+// response, and decodes the result payload when requested.
 func (c *TelegramAPIClient) do(req *http.Request, result any) error {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -349,6 +364,8 @@ func (c *TelegramAPIClient) do(req *http.Request, result any) error {
 	return nil
 }
 
+// methodURL builds the full Telegram Bot API endpoint URL for the given
+// method name.
 func (c *TelegramAPIClient) methodURL(method string) string {
 	return fmt.Sprintf("%s/bot%s/%s", c.baseURL, c.token, method)
 }

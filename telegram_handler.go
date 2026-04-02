@@ -11,9 +11,13 @@ import (
 )
 
 const (
+	// telegramSendGrace is the time budget reserved for sending Telegram replies
+	// after a download request has been accepted or completed.
 	telegramSendGrace = 30 * time.Second
 )
 
+// usageMessage explains the supported bot request formats shown to users when
+// their request cannot be parsed.
 const usageMessage = `Send only the YouTube link, optionally followed by:
 - a time range written with no spaces around the dash
 - the word audio at the end
@@ -34,11 +38,15 @@ You can also use start or end:
 https://www.youtube.com/watch?v=AqjB8DGt85U start-0:10
 https://www.youtube.com/watch?v=AqjB8DGt85U 0:10-end`
 
+// DownloadJob represents a parsed Telegram request that has been accepted and
+// queued for background processing.
 type DownloadJob struct {
 	Message         *TelegramAPIMessage
 	DownloadRequest DownloadRequest
 }
 
+// DownloadRequestHandler validates Telegram messages, turns accepted ones into
+// download jobs, and enqueues them for worker processing.
 type DownloadRequestHandler struct {
 	client          TelegramBotClient
 	logger          *slog.Logger
@@ -48,6 +56,8 @@ type DownloadRequestHandler struct {
 	downloadsWG     *sync.WaitGroup
 }
 
+// NewDownloadRequestHandler constructs a download request handler with the
+// dependencies needed to validate, acknowledge, and enqueue incoming requests.
 func NewDownloadRequestHandler(
 	client TelegramBotClient,
 	logger *slog.Logger,
@@ -79,6 +89,8 @@ func NewDownloadRequestHandler(
 	}, nil
 }
 
+// HandleUpdate validates a Telegram update, replies to the user when needed,
+// and enqueues accepted download requests for background processing.
 func (h *DownloadRequestHandler) HandleUpdate(ctx context.Context, update TelegramAPIUpdate) error {
 	// Check if update is a message
 	if update.Message == nil || update.Message.From == nil {
@@ -173,6 +185,8 @@ func (h *DownloadRequestHandler) HandleUpdate(ctx context.Context, update Telegr
 	return nil
 }
 
+// downloadWorker drains accepted download jobs from the queue and processes
+// them until the queue is closed.
 func downloadWorker(
 	ctx context.Context,
 	logger *slog.Logger,
@@ -203,8 +217,11 @@ func downloadWorker(
 	}
 }
 
+// removeFile is a test seam for deleting downloaded files after processing.
 var removeFile = os.Remove
 
+// handleDownloadRequest performs the download, sends the resulting media or a
+// fallback reply, and removes the downloaded file when possible.
 func handleDownloadRequest(
 	ctx context.Context,
 	client TelegramBotClient,
@@ -280,6 +297,8 @@ func handleDownloadRequest(
 	}
 }
 
+// sendReply sends a text reply to the given Telegram message and logs send
+// failures.
 func sendReply(
 	ctx context.Context,
 	bot TelegramBotClient,

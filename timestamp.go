@@ -8,15 +8,18 @@ import (
 	"strings"
 )
 
+// StartSecond is the sentinel value used for the beginning of a video.
 const StartSecond = 0
+
+// EndSecond is the sentinel value used for the end of a video.
 const EndSecond = -1
 
 // ErrInvalidTimestampRange reports that a timestamp range is malformed or
 // semantically invalid.
 var ErrInvalidTimestampRange = errors.New("invalid timestamp range")
 
-// TimestampRangePattern matches the structure of timestamp ranges in
-// MM:SS-MM:SS or HH:MM:SS-HH:MM:SS format, such as:
+// TimestampRangePattern matches the structure of timestamp ranges whose start
+// and end are expressed as MM:SS, HH:MM:SS, start, or end, such as:
 //
 // 1:05-1:10
 // 0:10-0:51
@@ -79,7 +82,8 @@ func parseHours(hours string) (int, error) {
 }
 
 // TimestampToSeconds parses a timestamp in MM:SS or HH:MM:SS format, or the
-// keywords start and end, and returns its corresponding value in seconds.
+// keywords start and end, and returns its corresponding value in seconds or
+// the StartSecond and EndSecond sentinel values.
 func TimestampToSeconds(timestamp string) (int, error) {
 	invalidTimestampErr := fmt.Errorf("invalid timestamp %q: expected HH:MM:SS, MM:SS, start, or end", timestamp)
 	parts := strings.Split(timestamp, ":")

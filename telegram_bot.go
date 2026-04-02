@@ -8,12 +8,19 @@ import (
 )
 
 const (
+	// telegramUpdatePollTimeoutSeconds is the long-poll timeout used when
+	// receiving updates from Telegram.
 	telegramUpdatePollTimeoutSeconds = 60
-	telegramUpdateRetryDelay         = time.Second
+	// telegramUpdateRetryDelay is the backoff applied after a non-fatal update
+	// polling failure.
+	telegramUpdateRetryDelay = time.Second
 )
 
+// afterRetryDelay is a test seam for the polling retry timer.
 var afterRetryDelay = time.After
 
+// TelegramBotClient describes the Telegram operations required by the bot loop
+// and the request handler.
 type TelegramBotClient interface {
 	ReceiveUpdates(ctx context.Context, offset int64, timeoutSeconds int) ([]TelegramAPIUpdate, error)
 	SendText(ctx context.Context, chatID int64, replyToMessageID int64, text string) (*TelegramAPIMessage, error)

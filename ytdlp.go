@@ -248,6 +248,7 @@ func (dr DownloadRequest) BuildCommand() ([]string, error) {
 	return cmd, nil
 }
 
+// commandContext is a test seam for creating yt-dlp commands.
 var commandContext = exec.CommandContext
 
 // Download executes the yt-dlp command for the download request using the
