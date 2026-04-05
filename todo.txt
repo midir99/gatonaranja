@@ -12,6 +12,8 @@
 - Add internazionalization
 - Change the filename of the downloaded video
 - Check with AI that descriptions, doc strings and readme match
+- Allow YouTube /live URLs (they are the same as /shorts)
+- When file to big to send over Telegram, suggest user to download by clips
 
 telegram.go (line 258): the current “goroutine per request + semaphore inside goroutine” pattern keeps the update loop responsive, but it still allows an unbounded number of waiting goroutines if many requests arrive while all 5 slots are busy. That’s fine for a small/private bot, but if usage grows, a bounded worker queue would be safer than unlimited parked goroutines.
 
