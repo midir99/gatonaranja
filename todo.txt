@@ -6,7 +6,7 @@
 - Make the installer install jobs so ffmpeg and yt-dlp are constantly updated
 - Make the installer take the serviced file from the tarball
 - Make CI actions for when a release is created so we get tarballs with the binary for linux, specifically for x86_64 and arm64
-- Fix indentation for install.sh and uninstall.sh script
+- Fix indentation for install-systemd-user.sh and uninstall.sh script
 - Add Dockerfile for people that wants to use Docker
 - Enhance README with link to actual Telegram bot and some badges
 - Add internazionalization
@@ -14,6 +14,7 @@
 - Check with AI that descriptions, doc strings and readme match
 - Allow YouTube /live URLs (they are the same as /shorts)
 - When file to big to send over Telegram, suggest user to download by clips
+- Add uninstall script
 
 telegram.go (line 258): the current “goroutine per request + semaphore inside goroutine” pattern keeps the update loop responsive, but it still allows an unbounded number of waiting goroutines if many requests arrive while all 5 slots are busy. That’s fine for a small/private bot, but if usage grows, a bounded worker queue would be safer than unlimited parked goroutines.
 
@@ -193,5 +194,4 @@ service file uses EnvironmentFile=...
 binary reads env vars normally
 protect the env file with chmod 600
 That is the usual and practical way to do this securely for a user-scoped service.
-
 

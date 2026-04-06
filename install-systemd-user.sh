@@ -44,7 +44,7 @@ usage() {
 Install ${APP_NAME} as a user-scoped systemd service.
 
 Usage:
-  ./install.sh [--version <tag>] [--skip-enable]
+  ./install-systemd-user.sh [--version <tag>] [--skip-enable]
 
 Options:
   --version <tag>  Install a specific GitHub release tag (default: latest)

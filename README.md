@@ -4,6 +4,24 @@
 
 It is designed to be simple to run as a standalone binary and easy to deploy as a `systemd` service.
 
+## Index
+
+- [Features](#features)
+- [Architecture](#architecture)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Telegram Request Format](#telegram-request-format)
+- [Supported Timestamp Formats](#supported-timestamp-formats)
+- [Make Targets](#make-targets)
+- [Maintainer Release Flow](#maintainer-release-flow)
+- [Running With systemd](#running-with-systemd)
+- [Logging](#logging)
+- [Security Notes](#security-notes)
+- [Development](#development)
+- [Acknowledgements](#acknowledgements)
+- [License](#license)
+
 ## Features
 
 - Download a full YouTube video
@@ -60,7 +78,11 @@ Build the binary from source:
 make build
 ```
 
-This creates the `gatonaranja` binary in the project directory.
+This creates the `gatonaranja` binary at:
+
+```bash
+bin/gatonaranja
+```
 
 You can also build it directly with Go:
 
@@ -71,11 +93,21 @@ go build -o gatonaranja
 ### Install From GitHub Releases
 
 You can install `gatonaranja` as a user-scoped service with the provided
-installer script:
+installer script published with each release.
+
+For a quick install of the latest release:
 
 ```bash
-chmod +x install.sh
-./install.sh
+curl -fsSL https://github.com/midir99/gatonaranja/releases/latest/download/install-systemd-user.sh | bash -s
+```
+
+For a safer and reproducible install, download the installer for a specific
+release, inspect it if you want, and run it with the same version:
+
+```bash
+curl -fsSLO https://github.com/midir99/gatonaranja/releases/download/vX.Y.Z/install-systemd-user.sh
+chmod +x install-systemd-user.sh
+./install-systemd-user.sh --version vX.Y.Z
 ```
 
 This installs:
@@ -87,16 +119,10 @@ This installs:
 
 By default, the installer also enables and starts the user service.
 
-You can install a specific release tag with:
+You can install without enabling the service yet:
 
 ```bash
-./install.sh --version vX.Y.Z
-```
-
-Or install without enabling the service yet:
-
-```bash
-./install.sh --skip-enable
+./install-systemd-user.sh --skip-enable
 ```
 
 After installation, edit:
@@ -117,35 +143,18 @@ Then restart the service:
 systemctl --user restart gatonaranja
 ```
 
-### Uninstall
-
-To uninstall the binary and user service:
-
-```bash
-chmod +x uninstall.sh
-./uninstall.sh
-```
-
-By default, the uninstall script keeps your working directory and config file.
-
-If you also want to remove downloaded files and configuration:
-
-```bash
-./uninstall.sh --remove-data --remove-config
-```
-
 ## Usage
 
 Run the bot with:
 
 ```bash
-./gatonaranja -telegram-bot-token "<YOUR_TELEGRAM_BOT_TOKEN>"
+./bin/gatonaranja -telegram-bot-token "<YOUR_TELEGRAM_BOT_TOKEN>"
 ```
 
 Optionally restrict which Telegram users can use the bot and tune download concurrency, queue size, and timeout:
 
 ```bash
-./gatonaranja \
+./bin/gatonaranja \
   -telegram-bot-token "<YOUR_TELEGRAM_BOT_TOKEN>" \
   -authorized-users "123456789,987654321" \
   -max-concurrent-downloads 5 \
@@ -202,7 +211,7 @@ export MAX_CONCURRENT_DOWNLOADS="5"
 export MAX_QUEUED_DOWNLOADS="5"
 export DOWNLOAD_TIMEOUT="5m"
 
-./gatonaranja
+./bin/gatonaranja
 ```
 
 ## Telegram Request Format
@@ -300,6 +309,7 @@ The release pipeline currently builds:
 - `gatonaranja_linux_amd64.tar.gz`
 - `gatonaranja_linux_arm64.tar.gz`
 - `checksums.txt`
+- `install-systemd-user.sh`
 
 The binary version printed by `-version` is injected at build time from the
 Git tag into `main.Version`.
@@ -318,7 +328,7 @@ Recommended paths for the user service setup are:
 The easiest way to install this layout is:
 
 ```bash
-./install.sh
+./install-systemd-user.sh
 ```
 
 If you are installing manually, reload and enable the user service with:

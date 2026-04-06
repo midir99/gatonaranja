@@ -31,4 +31,5 @@ checksum:
 release:
   draft: false
   prerelease: auto
-
+  extra_files:
+    - glob: ./install-systemd-user.sh
