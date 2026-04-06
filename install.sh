@@ -183,6 +183,7 @@ create_env_file() {
 AUTHORIZED_USERS=
 TELEGRAM_BOT_TOKEN=
 MAX_CONCURRENT_DOWNLOADS=5
+MAX_QUEUED_DOWNLOADS=5
 DOWNLOAD_TIMEOUT=5m
 EOF
 	chmod 600 "$ENV_PATH"
@@ -274,7 +275,7 @@ Installed files:
 
 Next steps:
   1. Edit ${ENV_PATH} and set TELEGRAM_BOT_TOKEN.
-  2. Optionally set AUTHORIZED_USERS, MAX_CONCURRENT_DOWNLOADS, and DOWNLOAD_TIMEOUT.
+  2. Optionally set AUTHORIZED_USERS, MAX_CONCURRENT_DOWNLOADS, MAX_QUEUED_DOWNLOADS, and DOWNLOAD_TIMEOUT.
 EOF
 
 	if [[ "$SERVICE_ENABLED" == "true" ]]; then
@@ -282,7 +283,7 @@ EOF
   3. Restart the service after changes:
      systemctl --user restart ${APP_NAME}
   4. View logs:
-     journalctl --user -u ${APP_NAME} -f
+     journalctl --user-unit=${APP_NAME}.service -f
 EOF
 	else
 		cat <<EOF
@@ -290,7 +291,7 @@ EOF
      systemctl --user daemon-reload
      systemctl --user enable --now ${APP_NAME}
   4. View logs:
-     journalctl --user -u ${APP_NAME} -f
+     journalctl --user-unit=${APP_NAME}.service -f
 EOF
 	fi
 

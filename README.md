@@ -276,6 +276,34 @@ make vet
 make lint
 ```
 
+## Maintainer Release Flow
+
+Releases are tag-driven.
+
+To publish a new release:
+
+```bash
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
+That tag triggers the GitHub Actions workflow at
+`.github/workflows/release.yml`, which:
+
+- checks out the tagged commit
+- runs `go test ./...`
+- runs GoReleaser using `.goreleaser.yaml`
+- publishes GitHub release assets
+
+The release pipeline currently builds:
+
+- `gatonaranja_linux_amd64.tar.gz`
+- `gatonaranja_linux_arm64.tar.gz`
+- `checksums.txt`
+
+The binary version printed by `-version` is injected at build time from the
+Git tag into `main.Version`.
+
 ## Running With systemd
 
 `gatonaranja` is intended to work well as a user-scoped `systemd` service.
