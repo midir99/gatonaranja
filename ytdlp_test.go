@@ -638,9 +638,12 @@ func compareStringArray(t *testing.T, got, want []string) {
 }
 
 func TestDownloadRequestBuildCommand(t *testing.T) {
+	const outputFilePath = "/tmp/gatonaranja-ytdlp-output.txt"
+
 	testCases := []struct {
 		testName        string
 		downloadRequest DownloadRequest
+		options         YTDLPOptions
 		wantCommand     []string
 		err             error
 	}{
@@ -652,11 +655,13 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				mediaKind:   MediaVideo,
 			},
+			YTDLPOptions{},
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
+				"--ignore-config",
 				"--no-playlist",
-				"--print", "after_move:filepath",
+				"--print-to-file", "after_move:filepath", outputFilePath,
 				"--format", "18/best[ext=mp4]/best",
 				"--format-sort", "+size,+br,+res,+fps",
 				"--output", "%(title)s.%(ext)s",
@@ -672,11 +677,13 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				mediaKind:   MediaVideo,
 			},
+			YTDLPOptions{},
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
+				"--ignore-config",
 				"--no-playlist",
-				"--print", "after_move:filepath",
+				"--print-to-file", "after_move:filepath", outputFilePath,
 				"--download-sections", "*00:00-00:05",
 				"--format", "18/best[ext=mp4]/best",
 				"--format-sort", "+size,+br,+res,+fps",
@@ -693,14 +700,39 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				mediaKind:   MediaAudio,
 			},
+			YTDLPOptions{},
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
+				"--ignore-config",
 				"--no-playlist",
-				"--print", "after_move:filepath",
+				"--print-to-file", "after_move:filepath", outputFilePath,
 				"--download-sections", "*00:00-00:05",
 				"--extract-audio",
 				"--audio-format", "mp3",
+				"--format", "18/best[ext=mp4]/best",
+				"--format-sort", "+size,+br,+res,+fps",
+				"--output", "%(title)s.%(ext)s",
+				"https://www.youtube.com/watch?v=8v_kBIIGViY",
+			},
+			nil,
+		},
+		{
+			"video with explicit ytdlp config",
+			DownloadRequest{
+				startSecond: StartSecond,
+				endSecond:   EndSecond,
+				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
+				mediaKind:   MediaVideo,
+			},
+			YTDLPOptions{ConfigPath: "/home/arthur/.config/gatonaranja/yt-dlp.conf"},
+			[]string{
+				"yt-dlp",
+				"--no-simulate",
+				"--ignore-config",
+				"--config-locations", "/home/arthur/.config/gatonaranja/yt-dlp.conf",
+				"--no-playlist",
+				"--print-to-file", "after_move:filepath", outputFilePath,
 				"--format", "18/best[ext=mp4]/best",
 				"--format-sort", "+size,+br,+res,+fps",
 				"--output", "%(title)s.%(ext)s",
@@ -716,6 +748,7 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				mediaKind:   MediaVideo,
 			},
+			YTDLPOptions{},
 			nil,
 			errors.New("start second must be lower than end second"),
 		},
@@ -727,11 +760,13 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				mediaKind:   MediaVideo,
 			},
+			YTDLPOptions{},
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
+				"--ignore-config",
 				"--no-playlist",
-				"--print", "after_move:filepath",
+				"--print-to-file", "after_move:filepath", outputFilePath,
 				"--download-sections", "*00:10-00:20",
 				"--format", "18/best[ext=mp4]/best",
 				"--format-sort", "+size,+br,+res,+fps",
@@ -748,11 +783,13 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				mediaKind:   MediaVideo,
 			},
+			YTDLPOptions{},
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
+				"--ignore-config",
 				"--no-playlist",
-				"--print", "after_move:filepath",
+				"--print-to-file", "after_move:filepath", outputFilePath,
 				"--download-sections", "*01:00:00-01:01:05",
 				"--format", "18/best[ext=mp4]/best",
 				"--format-sort", "+size,+br,+res,+fps",
@@ -769,11 +806,13 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				mediaKind:   MediaVideo,
 			},
+			YTDLPOptions{},
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
+				"--ignore-config",
 				"--no-playlist",
-				"--print", "after_move:filepath",
+				"--print-to-file", "after_move:filepath", outputFilePath,
 				"--format", "18/best[ext=mp4]/best",
 				"--format-sort", "+size,+br,+res,+fps",
 				"--output", "%(title)s.%(ext)s",
@@ -789,11 +828,13 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				mediaKind:   MediaAudio,
 			},
+			YTDLPOptions{},
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
+				"--ignore-config",
 				"--no-playlist",
-				"--print", "after_move:filepath",
+				"--print-to-file", "after_move:filepath", outputFilePath,
 				"--extract-audio",
 				"--audio-format", "mp3",
 				"--format", "18/best[ext=mp4]/best",
@@ -811,11 +852,13 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				mediaKind:   MediaAudio,
 			},
+			YTDLPOptions{},
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
+				"--ignore-config",
 				"--no-playlist",
-				"--print", "after_move:filepath",
+				"--print-to-file", "after_move:filepath", outputFilePath,
 				"--download-sections", "*00:30-inf",
 				"--extract-audio",
 				"--audio-format", "mp3",
@@ -834,6 +877,7 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				mediaKind:   MediaVideo,
 			},
+			YTDLPOptions{},
 			nil,
 			fmt.Errorf("invalid start second %d", -5),
 		},
@@ -845,6 +889,7 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				mediaKind:   MediaVideo,
 			},
+			YTDLPOptions{},
 			nil,
 			fmt.Errorf("invalid end second %d", -10),
 		},
@@ -856,6 +901,7 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				mediaKind:   MediaVideo,
 			},
+			YTDLPOptions{},
 			nil,
 			errors.New("start second must be lower than end second"),
 		},
@@ -867,11 +913,13 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				mediaKind:   MediaAudio,
 			},
+			YTDLPOptions{},
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
+				"--ignore-config",
 				"--no-playlist",
-				"--print", "after_move:filepath",
+				"--print-to-file", "after_move:filepath", outputFilePath,
 				"--extract-audio",
 				"--audio-format", "mp3",
 				"--format", "18/best[ext=mp4]/best",
@@ -884,7 +932,7 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
-			got, err := tc.downloadRequest.BuildCommand()
+			got, err := tc.downloadRequest.BuildCommand(outputFilePath, tc.options)
 			if tc.err != nil && err == nil {
 				t.Fatalf("got nil, want %q", tc.err.Error())
 			}
@@ -893,6 +941,22 @@ func TestDownloadRequestBuildCommand(t *testing.T) {
 			}
 			compareStringArray(t, got, tc.wantCommand)
 		})
+	}
+}
+
+func TestDownloadRequestBuildCommandRequiresOutputFilePath(t *testing.T) {
+	_, err := DownloadRequest{
+		startSecond: StartSecond,
+		endSecond:   EndSecond,
+		sourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
+		mediaKind:   MediaVideo,
+	}.BuildCommand("", YTDLPOptions{})
+
+	if err == nil {
+		t.Fatal("BuildCommand() error = nil, want error")
+	}
+	if got, want := err.Error(), "yt-dlp output filepath file is required"; got != want {
+		t.Fatalf("BuildCommand() error = %q, want %q", got, want)
 	}
 }
 
@@ -963,24 +1027,56 @@ func TestHelperProcess(_ *testing.T) {
 	}
 
 	args := os.Args
-	mode := args[len(args)-1]
+	separatorIndex := -1
+	for i, arg := range args {
+		if arg == "--" {
+			separatorIndex = i
+			break
+		}
+	}
+	if separatorIndex == -1 || separatorIndex+1 >= len(args) {
+		fmt.Fprint(os.Stderr, "missing helper arguments")
+		os.Exit(2)
+	}
+
+	helperArgs := args[separatorIndex+1:]
+	mode := helperArgs[0]
+	commandArgs := helperArgs[1:]
+	outputFilePath := ""
+	for i := 0; i < len(commandArgs)-2; i++ {
+		if commandArgs[i] == "--print-to-file" && commandArgs[i+1] == "after_move:filepath" {
+			outputFilePath = commandArgs[i+2]
+			break
+		}
+	}
+
+	writeOutputFile := func(contents string) {
+		if outputFilePath == "" {
+			fmt.Fprint(os.Stderr, "missing --print-to-file output path")
+			os.Exit(2)
+		}
+		if err := os.WriteFile(outputFilePath, []byte(contents), 0o600); err != nil {
+			fmt.Fprint(os.Stderr, err.Error())
+			os.Exit(2)
+		}
+	}
 
 	switch mode {
 	case "success":
-		fmt.Fprint(os.Stdout, "file.mp4")
+		writeOutputFile("file.mp4")
 		os.Exit(0)
 	case "empty-success":
 		os.Exit(0)
 	case "success-with-spaces":
-		fmt.Fprint(os.Stdout, "\n\n \t \r file.mp4   		\n\t")
+		writeOutputFile("\n\n \t \r file.mp4   \t\t\n\t")
 		os.Exit(0)
 	case "stderr-and-fail":
 		fmt.Fprint(os.Stderr, "error")
 		os.Exit(1)
 	case "fail-without-stderr":
 		os.Exit(1)
-	case "multiline-stdout":
-		fmt.Fprint(os.Stdout, "file.mp4\nextra\n")
+	case "multiline-output-file":
+		writeOutputFile("file.mp4\nextra\n")
 		os.Exit(0)
 	default:
 		fmt.Fprint(os.Stderr, "unknown helper mode")
@@ -988,14 +1084,15 @@ func TestHelperProcess(_ *testing.T) {
 	}
 }
 
-func helperCommand(ctx context.Context, mode string) *exec.Cmd {
-	cmd := exec.CommandContext(
-		ctx,
-		os.Args[0],
+func helperCommand(ctx context.Context, mode string, args ...string) *exec.Cmd {
+	commandArgs := []string{
 		"-test.run=TestHelperProcess",
 		"--",
 		mode,
-	)
+	}
+	commandArgs = append(commandArgs, args...)
+
+	cmd := exec.CommandContext(ctx, os.Args[0], commandArgs...)
 	cmd.Env = append(os.Environ(), "GO_WANT_HELPER_PROCESS=1")
 	return cmd
 }
@@ -1017,8 +1114,8 @@ func TestDownloadRequestDownload(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				mediaKind:   MediaVideo,
 			},
-			func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
-				return helperCommand(ctx, "success")
+			func(ctx context.Context, _ string, args ...string) *exec.Cmd {
+				return helperCommand(ctx, "success", args...)
 			},
 			"file.mp4",
 			false,
@@ -1032,8 +1129,8 @@ func TestDownloadRequestDownload(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				mediaKind:   MediaVideo,
 			},
-			func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
-				return helperCommand(ctx, "success")
+			func(ctx context.Context, _ string, args ...string) *exec.Cmd {
+				return helperCommand(ctx, "success", args...)
 			},
 			"",
 			true,
@@ -1047,23 +1144,23 @@ func TestDownloadRequestDownload(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				mediaKind:   MediaVideo,
 			},
-			func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
-				return helperCommand(ctx, "empty-success")
+			func(ctx context.Context, _ string, args ...string) *exec.Cmd {
+				return helperCommand(ctx, "empty-success", args...)
 			},
 			"",
 			true,
-			[]string{"yt-dlp succeeded but did not print the output filepath"},
+			[]string{"yt-dlp succeeded but did not write the output filepath"},
 		},
 		{
-			"trims spaces from stdout",
+			"trims spaces from output filepath file",
 			DownloadRequest{
 				startSecond: StartSecond,
 				endSecond:   EndSecond,
 				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				mediaKind:   MediaVideo,
 			},
-			func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
-				return helperCommand(ctx, "success-with-spaces")
+			func(ctx context.Context, _ string, args ...string) *exec.Cmd {
+				return helperCommand(ctx, "success-with-spaces", args...)
 			},
 			"file.mp4",
 			false,
@@ -1077,8 +1174,8 @@ func TestDownloadRequestDownload(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				mediaKind:   MediaVideo,
 			},
-			func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
-				return helperCommand(ctx, "stderr-and-fail")
+			func(ctx context.Context, _ string, args ...string) *exec.Cmd {
+				return helperCommand(ctx, "stderr-and-fail", args...)
 			},
 			"",
 			true,
@@ -1092,27 +1189,27 @@ func TestDownloadRequestDownload(t *testing.T) {
 				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				mediaKind:   MediaVideo,
 			},
-			func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
-				return helperCommand(ctx, "fail-without-stderr")
+			func(ctx context.Context, _ string, args ...string) *exec.Cmd {
+				return helperCommand(ctx, "fail-without-stderr", args...)
 			},
 			"",
 			true,
 			[]string{"yt-dlp failed"},
 		},
 		{
-			"multi-line stdout",
+			"multiple output filepaths are rejected",
 			DownloadRequest{
 				startSecond: StartSecond,
 				endSecond:   EndSecond,
 				sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				mediaKind:   MediaVideo,
 			},
-			func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
-				return helperCommand(ctx, "multiline-stdout")
+			func(ctx context.Context, _ string, args ...string) *exec.Cmd {
+				return helperCommand(ctx, "multiline-output-file", args...)
 			},
-			"file.mp4\nextra",
-			false,
-			[]string{},
+			"",
+			true,
+			[]string{"yt-dlp wrote multiple output filepaths"},
 		},
 	}
 	for _, tc := range testCases {
@@ -1145,8 +1242,8 @@ func TestDownloadRequestDownload(t *testing.T) {
 
 	t.Run("canceled context returns command error", func(t *testing.T) {
 		productionCommandContext := commandContext
-		commandContext = func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
-			return helperCommand(ctx, "success")
+		commandContext = func(ctx context.Context, _ string, args ...string) *exec.Cmd {
+			return helperCommand(ctx, "success", args...)
 		}
 		defer func() { commandContext = productionCommandContext }()
 

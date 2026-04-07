@@ -159,7 +159,8 @@ Optionally restrict which Telegram users can use the bot and tune download concu
   -authorized-users "123456789,987654321" \
   -max-concurrent-downloads 5 \
   -max-queued-downloads 5 \
-  -download-timeout 5m
+  -download-timeout 5m \
+  -ytdlp-config ~/.config/gatonaranja/yt-dlp.conf
 ```
 
 ### Flags
@@ -189,6 +190,13 @@ Optionally restrict which Telegram users can use the bot and tune download concu
   Defaults to `5m`.
   Can also be set with `DOWNLOAD_TIMEOUT`.
 
+- `-ytdlp-config`
+  Path to an optional yt-dlp configuration file with extra operator-controlled
+  options such as proxy or cookies.
+  Can also be set with `YTDLP_CONFIG`.
+  When omitted, gatonaranja runs yt-dlp with `--ignore-config` so ambient
+  system or user yt-dlp configs do not affect the bot.
+
 - `-version`
   Print the application version and exit.
 
@@ -201,6 +209,7 @@ You can provide configuration through environment variables instead of flags:
 - `MAX_CONCURRENT_DOWNLOADS`
 - `MAX_QUEUED_DOWNLOADS`
 - `DOWNLOAD_TIMEOUT`
+- `YTDLP_CONFIG`
 
 Example:
 
@@ -210,6 +219,7 @@ export AUTHORIZED_USERS="123456789,987654321"
 export MAX_CONCURRENT_DOWNLOADS="5"
 export MAX_QUEUED_DOWNLOADS="5"
 export DOWNLOAD_TIMEOUT="5m"
+export YTDLP_CONFIG="$HOME/.config/gatonaranja/yt-dlp.conf"
 
 ./bin/gatonaranja
 ```

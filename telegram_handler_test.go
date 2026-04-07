@@ -256,6 +256,7 @@ func TestNewDownloadRequestHandler(t *testing.T) {
 				tc.logger,
 				[]int64{777},
 				2*time.Minute,
+				YTDLPOptions{},
 				tc.queue,
 				tc.wg,
 			)
@@ -286,6 +287,7 @@ func TestDownloadRequestHandlerHandleUpdateIgnoresNilMessageOrSender(t *testing.
 		newHandlerTestLogger(),
 		[]int64{777},
 		time.Minute,
+		YTDLPOptions{},
 		make(chan DownloadJob, 1),
 		&sync.WaitGroup{},
 	)
@@ -335,6 +337,7 @@ func TestDownloadRequestHandlerHandleUpdateIgnoresRequestWhenShutdownInProgress(
 		logger,
 		[]int64{777},
 		time.Minute,
+		YTDLPOptions{},
 		make(chan DownloadJob, 1),
 		&sync.WaitGroup{},
 	)
@@ -367,6 +370,7 @@ func TestDownloadRequestHandlerHandleUpdateRejectsUnauthorizedUser(t *testing.T)
 		newHandlerTestLogger(),
 		[]int64{999},
 		time.Minute,
+		YTDLPOptions{},
 		make(chan DownloadJob, 1),
 		&sync.WaitGroup{},
 	)
@@ -420,6 +424,7 @@ func TestDownloadRequestHandlerHandleUpdateParseFailures(t *testing.T) {
 				newHandlerTestLogger(),
 				[]int64{777},
 				time.Minute,
+				YTDLPOptions{},
 				make(chan DownloadJob, 1),
 				&sync.WaitGroup{},
 			)
@@ -453,6 +458,7 @@ func TestDownloadRequestHandlerHandleUpdateEnqueuesJobAndSendsAck(t *testing.T) 
 		newHandlerTestLogger(),
 		[]int64{777},
 		2*time.Minute,
+		YTDLPOptions{ConfigPath: "/home/arthur/.config/gatonaranja/yt-dlp.conf"},
 		downloadQueue,
 		&downloadsWG,
 	)
@@ -480,6 +486,9 @@ func TestDownloadRequestHandlerHandleUpdateEnqueuesJobAndSendsAck(t *testing.T) 
 	case job := <-downloadQueue:
 		if job.Message != message {
 			t.Fatal("queued job message does not match original message")
+		}
+		if got, want := job.YTDLPOptions.ConfigPath, "/home/arthur/.config/gatonaranja/yt-dlp.conf"; got != want {
+			t.Fatalf("queued YTDLP config path = %q, want %q", got, want)
 		}
 		if got, want := job.DownloadRequest.mediaKind, MediaAudio; got != want {
 			t.Fatalf("queued media kind = %v, want %v", got, want)
@@ -510,6 +519,7 @@ func TestDownloadRequestHandlerHandleUpdateRejectsWhenQueueIsFull(t *testing.T) 
 		newHandlerTestLogger(),
 		[]int64{777},
 		time.Minute,
+		YTDLPOptions{},
 		downloadQueue,
 		&downloadsWG,
 	)
@@ -543,6 +553,7 @@ func TestDownloadRequestHandlerHandleUpdateRejectsWhenShutdownStartsBeforeEnqueu
 		newHandlerTestLogger(),
 		[]int64{777},
 		time.Minute,
+		YTDLPOptions{},
 		downloadQueue,
 		&downloadsWG,
 	)
@@ -810,10 +821,40 @@ func TestTelegramHandlerHelperProcess(_ *testing.T) {
 		return
 	}
 
-	mode := os.Args[len(os.Args)-1]
+	args := os.Args
+	separatorIndex := -1
+	for i, arg := range args {
+		if arg == "--" {
+			separatorIndex = i
+			break
+		}
+	}
+	if separatorIndex == -1 || separatorIndex+1 >= len(args) {
+		fmt.Fprint(os.Stderr, "missing helper arguments")
+		os.Exit(2)
+	}
+
+	helperArgs := args[separatorIndex+1:]
+	mode := helperArgs[0]
+	commandArgs := helperArgs[1:]
+	outputFilePath := ""
+	for i := 0; i < len(commandArgs)-2; i++ {
+		if commandArgs[i] == "--print-to-file" && commandArgs[i+1] == "after_move:filepath" {
+			outputFilePath = commandArgs[i+2]
+			break
+		}
+	}
+
 	switch mode {
 	case "success":
-		fmt.Fprint(os.Stdout, "file.mp4")
+		if outputFilePath == "" {
+			fmt.Fprint(os.Stderr, "missing --print-to-file output path")
+			os.Exit(2)
+		}
+		if err := os.WriteFile(outputFilePath, []byte("file.mp4"), 0o600); err != nil {
+			fmt.Fprint(os.Stderr, err.Error())
+			os.Exit(2)
+		}
 		os.Exit(0)
 	default:
 		fmt.Fprint(os.Stderr, "unknown helper mode")
@@ -821,14 +862,15 @@ func TestTelegramHandlerHelperProcess(_ *testing.T) {
 	}
 }
 
-func telegramHandlerHelperCommand(ctx context.Context, mode string) *exec.Cmd {
-	cmd := exec.CommandContext(
-		ctx,
-		os.Args[0],
+func telegramHandlerHelperCommand(ctx context.Context, mode string, args ...string) *exec.Cmd {
+	commandArgs := []string{
 		"-test.run=TestTelegramHandlerHelperProcess",
 		"--",
 		mode,
-	)
+	}
+	commandArgs = append(commandArgs, args...)
+
+	cmd := exec.CommandContext(ctx, os.Args[0], commandArgs...)
 	cmd.Env = append(os.Environ(), "GO_WANT_TELEGRAM_HANDLER_HELPER_PROCESS=1")
 	return cmd
 }
@@ -846,6 +888,7 @@ func TestDownloadWorkerProcessesQueuedJob(t *testing.T) {
 			sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 			mediaKind:   MediaVideo,
 		},
+		YTDLPOptions: YTDLPOptions{ConfigPath: "/home/arthur/.config/gatonaranja/yt-dlp.conf"},
 	}
 	close(jobs)
 
@@ -856,8 +899,10 @@ func TestDownloadWorkerProcessesQueuedJob(t *testing.T) {
 		removeFile = productionRemoveFile
 	}()
 
-	commandContext = func(ctx context.Context, _ string, _ ...string) *exec.Cmd {
-		return telegramHandlerHelperCommand(ctx, "success")
+	var gotArgs []string
+	commandContext = func(ctx context.Context, _ string, args ...string) *exec.Cmd {
+		gotArgs = append([]string(nil), args...)
+		return telegramHandlerHelperCommand(ctx, "success", args...)
 	}
 	removeFile = func(string) error { return nil }
 
@@ -877,5 +922,11 @@ func TestDownloadWorkerProcessesQueuedJob(t *testing.T) {
 	}
 	if got, want := client.sendVideoCalls[0].filePath, "file.mp4"; got != want {
 		t.Fatalf("video filepath = %q, want %q", got, want)
+	}
+	if !strings.Contains(strings.Join(gotArgs, "\x00"), "--config-locations") {
+		t.Fatalf("worker yt-dlp args = %v, want --config-locations", gotArgs)
+	}
+	if !strings.Contains(strings.Join(gotArgs, "\x00"), "/home/arthur/.config/gatonaranja/yt-dlp.conf") {
+		t.Fatalf("worker yt-dlp args = %v, want configured yt-dlp config path", gotArgs)
 	}
 }

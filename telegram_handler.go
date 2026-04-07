@@ -43,6 +43,7 @@ https://www.youtube.com/watch?v=AqjB8DGt85U 0:10-end`
 type DownloadJob struct {
 	Message         *TelegramAPIMessage
 	DownloadRequest DownloadRequest
+	YTDLPOptions    YTDLPOptions
 }
 
 // DownloadRequestHandler validates Telegram messages, turns accepted ones into
@@ -52,6 +53,7 @@ type DownloadRequestHandler struct {
 	logger          *slog.Logger
 	authorizedUsers []int64
 	downloadTimeout time.Duration
+	ytdlpOptions    YTDLPOptions
 	downloadQueue   chan DownloadJob
 	downloadsWG     *sync.WaitGroup
 }
@@ -63,6 +65,7 @@ func NewDownloadRequestHandler(
 	logger *slog.Logger,
 	authorizedUsers []int64,
 	downloadTimeout time.Duration,
+	ytdlpOptions YTDLPOptions,
 	downloadQueue chan DownloadJob,
 	downloadsWG *sync.WaitGroup,
 ) (*DownloadRequestHandler, error) {
@@ -84,6 +87,7 @@ func NewDownloadRequestHandler(
 		logger:          logger,
 		authorizedUsers: authorizedUsers,
 		downloadTimeout: downloadTimeout,
+		ytdlpOptions:    ytdlpOptions,
 		downloadQueue:   downloadQueue,
 		downloadsWG:     downloadsWG,
 	}, nil
@@ -152,6 +156,7 @@ func (h *DownloadRequestHandler) HandleUpdate(ctx context.Context, update Telegr
 	downloadJob := DownloadJob{
 		Message:         update.Message,
 		DownloadRequest: downloadRequest,
+		YTDLPOptions:    h.ytdlpOptions,
 	}
 	h.downloadsWG.Add(1)
 	select {
@@ -205,7 +210,8 @@ func downloadWorker(
 			"message_text", job.Message.Text,
 		)
 		jobBaseCtx := context.WithoutCancel(ctx)
-		handleDownloadRequest(jobBaseCtx, bot, logger, job.Message, job.DownloadRequest, downloadTimeout)
+		mediaDownloader := NewYTDLPDownloader(job.DownloadRequest, job.YTDLPOptions)
+		handleDownloadRequest(jobBaseCtx, bot, logger, job.Message, mediaDownloader, downloadTimeout)
 		logger.Info(
 			"Worker finished download",
 			"worker_id", workerID,

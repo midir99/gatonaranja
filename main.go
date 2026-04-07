@@ -97,6 +97,7 @@ func run(logger *slog.Logger) error {
 		logger,
 		config.AuthorizedUsers,
 		config.DownloadTimeout,
+		YTDLPOptions{ConfigPath: config.YTDLPConfig},
 		downloadJobsQueue,
 		&downloadsWG,
 	)

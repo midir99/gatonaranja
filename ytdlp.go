@@ -5,7 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -34,6 +36,12 @@ type MediaDownloader interface {
 	MediaKind() MediaKind
 }
 
+// YTDLPOptions contains runtime yt-dlp configuration controlled by the bot
+// operator rather than by the Telegram request itself.
+type YTDLPOptions struct {
+	ConfigPath string
+}
+
 // DownloadRequest describes the source URL, timestamp range, and media kind
 // for a media download request.
 type DownloadRequest struct {
@@ -41,6 +49,22 @@ type DownloadRequest struct {
 	endSecond   int
 	mediaKind   MediaKind
 	sourceURL   string
+}
+
+// YTDLPDownloader executes a download request with the given yt-dlp runtime
+// options.
+type YTDLPDownloader struct {
+	request DownloadRequest
+	options YTDLPOptions
+}
+
+// NewYTDLPDownloader creates a MediaDownloader that applies the given runtime
+// yt-dlp options when downloading the request.
+func NewYTDLPDownloader(request DownloadRequest, options YTDLPOptions) YTDLPDownloader {
+	return YTDLPDownloader{
+		request: request,
+		options: options,
+	}
 }
 
 // validateYouTubeURL parses rawURL, validates that it is a supported YouTube
@@ -213,11 +237,28 @@ func (dr DownloadRequest) MediaKind() MediaKind {
 	return dr.mediaKind
 }
 
-// BuildCommand builds the yt-dlp command for the download request,
-// including optional section download and audio extraction flags, and
-// returns it as a slice of arguments ready to be passed to "[exec.Command]".
-func (dr DownloadRequest) BuildCommand() ([]string, error) {
-	cmd := []string{"yt-dlp", "--no-simulate", "--no-playlist", "--print", "after_move:filepath"}
+// BuildCommand builds the yt-dlp command for the download request using the
+// given output filepath file and runtime options, including optional section
+// download and audio extraction flags. It returns the arguments ready to be
+// passed to "[exec.Command]".
+func (dr DownloadRequest) BuildCommand(outputFilePath string, options YTDLPOptions) ([]string, error) {
+	outputFilePath = strings.TrimSpace(outputFilePath)
+	if outputFilePath == "" {
+		return nil, errors.New("yt-dlp output filepath file is required")
+	}
+
+	cmd := []string{"yt-dlp", "--no-simulate", "--ignore-config"}
+
+	if options.ConfigPath != "" {
+		cmd = append(cmd, "--config-locations", options.ConfigPath)
+	}
+	cmd = append(
+		cmd,
+		"--no-playlist",
+		"--print-to-file",
+		"after_move:filepath",
+		outputFilePath,
+	)
 
 	if dr.startSecond != StartSecond || dr.endSecond != EndSecond {
 		downloadSections, err := SecondsToDownloadSections(dr.startSecond, dr.endSecond)
@@ -252,18 +293,41 @@ func (dr DownloadRequest) BuildCommand() ([]string, error) {
 var commandContext = exec.CommandContext
 
 // Download executes the yt-dlp command for the download request using the
-// provided context, and returns the final output filepath reported by yt-dlp.
+// provided context and the default yt-dlp runtime options.
 func (dr DownloadRequest) Download(ctx context.Context) (string, error) {
-	cmdArgs, err := dr.BuildCommand()
+	return NewYTDLPDownloader(dr, YTDLPOptions{}).Download(ctx)
+}
+
+// MediaKind reports the kind of media produced by the wrapped download
+// request.
+func (d YTDLPDownloader) MediaKind() MediaKind {
+	return d.request.MediaKind()
+}
+
+// Download executes yt-dlp for the wrapped request using the provided context
+// and runtime options, and returns the final output filepath reported by
+// yt-dlp.
+func (d YTDLPDownloader) Download(ctx context.Context) (string, error) {
+	outputFile, err := os.CreateTemp("", "gatonaranja-ytdlp-output-*")
+	if err != nil {
+		return "", fmt.Errorf("create yt-dlp output filepath file: %w", err)
+	}
+	outputFilePath := outputFile.Name()
+	if err := outputFile.Close(); err != nil {
+		_ = os.Remove(outputFilePath)
+		return "", fmt.Errorf("close yt-dlp output filepath file: %w", err)
+	}
+	defer os.Remove(outputFilePath)
+
+	cmdArgs, err := d.request.BuildCommand(outputFilePath, d.options)
 	if err != nil {
 		return "", err
 	}
 
 	cmd := commandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
 
-	var stdout bytes.Buffer
+	cmd.Stdout = io.Discard
 	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	err = cmd.Run()
@@ -271,10 +335,27 @@ func (dr DownloadRequest) Download(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("yt-dlp failed: %w: %s", err, stderr.String())
 	}
 
-	outputPath := strings.TrimSpace(stdout.String())
-	if outputPath == "" {
-		return "", errors.New("yt-dlp succeeded but did not print the output filepath")
+	outputFileBytes, err := os.ReadFile(outputFilePath)
+	if err != nil {
+		return "", fmt.Errorf("read yt-dlp output filepath file: %w", err)
 	}
 
-	return outputPath, nil
+	outputPath := strings.TrimSpace(string(outputFileBytes))
+	if outputPath == "" {
+		return "", errors.New("yt-dlp succeeded but did not write the output filepath")
+	}
+
+	outputFileLines := strings.Split(outputPath, "\n")
+	nonEmptyLines := make([]string, 0, len(outputFileLines))
+	for _, line := range outputFileLines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			nonEmptyLines = append(nonEmptyLines, line)
+		}
+	}
+	if len(nonEmptyLines) != 1 {
+		return "", fmt.Errorf("yt-dlp wrote multiple output filepaths: %q", outputPath)
+	}
+
+	return nonEmptyLines[0], nil
 }
