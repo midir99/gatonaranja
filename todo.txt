@@ -2,18 +2,16 @@
 - If the bot gets so big start using a requestID, not now
 - Try to get as much metadata from the video as possible, at least artist name, so when someone downloads audio they can have the artist name
 - Maybe and just maaaaybe support other platforms like instagram :)
-- Make the installer
-- Make the installer install jobs so ffmpeg and yt-dlp are constantly updated
-- Make the installer take the serviced file from the tarball
-- Make CI actions for when a release is created so we get tarballs with the binary for linux, specifically for x86_64 and arm64
+- Make jobs that update yt-dlp and ffmpeg constantly
 - Fix indentation for install-systemd-user.sh and uninstall.sh script
 - Add Dockerfile for people that wants to use Docker
 - Enhance README with link to actual Telegram bot and some badges
-- Add internazionalization
+- Add internazionalization, mainly spanish and english
+- Add random messages, so each time gato sends a message is a variant of the message, something funny
 - Change the filename of the downloaded video
 - Check with AI that descriptions, doc strings and readme match
 - Allow YouTube /live URLs (they are the same as /shorts)
 - When file to big to send over Telegram, suggest user to download by clips
 - Add uninstall script
-- Allow to load config from ytdlp config files
 - DO A CLEANUP TO THIS FILE
+- Cover more test cases for cmd.go
