@@ -500,6 +500,18 @@ func TestValidateYTDLPConfig(t *testing.T) {
 			"",
 			errors.New(`invalid ytdlp config "` + tempDir + `": must be a regular file`),
 		},
+		{
+			"directory is rejected 2",
+			"~",
+			"",
+			errors.New(`invalid ytdlp config "~": must be a regular file`),
+		},
+		{
+			"directory is rejected 3",
+			"~/",
+			"",
+			errors.New(`invalid ytdlp config "~/": must be a regular file`),
+		},
 	}
 
 	for _, tc := range testCases {
@@ -985,6 +997,15 @@ func TestParseConfig(t *testing.T) {
 				PrintVersion: true,
 			},
 			nil,
+		},
+		{
+			"ytdlp config file does not exist",
+			[]string{
+				"-telegram-bot-token", "123:abc",
+				"-ytdlp-config", "/idontexist",
+			},
+			Config{},
+			errors.New(`invalid ytdlp config "/idontexist": open /idontexist: no such file or directory`),
 		},
 	}
 
