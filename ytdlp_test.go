@@ -607,12 +607,12 @@ func TestYTDLPDownloaderMediaKind(t *testing.T) {
 	}{
 		{
 			"media video",
-			NewYTDLPDownloader(DownloadRequest{MediaKind: MediaVideo}, YTDLPOptions{}),
+			NewYTDLPDownloader(DownloadRequest{MediaKind: MediaVideo}, ""),
 			MediaVideo,
 		},
 		{
 			"media audio",
-			NewYTDLPDownloader(DownloadRequest{MediaKind: MediaAudio}, YTDLPOptions{}),
+			NewYTDLPDownloader(DownloadRequest{MediaKind: MediaAudio}, ""),
 			MediaAudio,
 		},
 	}
@@ -656,7 +656,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				EndSecond:   EndSecond,
 				SourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				MediaKind:   MediaVideo,
-			}, YTDLPOptions{}),
+			}, ""),
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
@@ -677,7 +677,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				EndSecond:   5,
 				SourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				MediaKind:   MediaVideo,
-			}, YTDLPOptions{}),
+			}, ""),
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
@@ -699,7 +699,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				EndSecond:   5,
 				SourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				MediaKind:   MediaAudio,
-			}, YTDLPOptions{}),
+			}, ""),
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
@@ -723,7 +723,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				EndSecond:   EndSecond,
 				SourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				MediaKind:   MediaVideo,
-			}, YTDLPOptions{ConfigPath: "/home/arthur/.config/gatonaranja/yt-dlp.conf"}),
+			}, "/home/arthur/.config/gatonaranja/yt-dlp.conf"),
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
@@ -745,7 +745,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				EndSecond:   10,
 				SourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				MediaKind:   MediaVideo,
-			}, YTDLPOptions{}),
+			}, ""),
 			nil,
 			errors.New("start second must be lower than end second"),
 		},
@@ -756,7 +756,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				EndSecond:   20,
 				SourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				MediaKind:   MediaVideo,
-			}, YTDLPOptions{}),
+			}, ""),
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
@@ -778,7 +778,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				EndSecond:   3665,
 				SourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				MediaKind:   MediaVideo,
-			}, YTDLPOptions{}),
+			}, ""),
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
@@ -800,7 +800,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				EndSecond:   EndSecond,
 				SourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				MediaKind:   MediaVideo,
-			}, YTDLPOptions{}),
+			}, ""),
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
@@ -821,7 +821,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				EndSecond:   EndSecond,
 				SourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				MediaKind:   MediaAudio,
-			}, YTDLPOptions{}),
+			}, ""),
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
@@ -844,7 +844,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				EndSecond:   EndSecond,
 				SourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				MediaKind:   MediaAudio,
-			}, YTDLPOptions{}),
+			}, ""),
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
@@ -868,7 +868,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				EndSecond:   10,
 				SourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				MediaKind:   MediaVideo,
-			}, YTDLPOptions{}),
+			}, ""),
 			nil,
 			fmt.Errorf("invalid start second %d", -5),
 		},
@@ -879,7 +879,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				EndSecond:   -10,
 				SourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				MediaKind:   MediaVideo,
-			}, YTDLPOptions{}),
+			}, ""),
 			nil,
 			fmt.Errorf("invalid end second %d", -10),
 		},
@@ -890,7 +890,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				EndSecond:   10,
 				SourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				MediaKind:   MediaVideo,
-			}, YTDLPOptions{}),
+			}, ""),
 			nil,
 			errors.New("start second must be lower than end second"),
 		},
@@ -901,7 +901,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				EndSecond:   EndSecond,
 				SourceURL:   "https://www.youtube.com/watch?v=8v_kBIIGViY",
 				MediaKind:   MediaAudio,
-			}, YTDLPOptions{}),
+			}, ""),
 			[]string{
 				"yt-dlp",
 				"--no-simulate",
@@ -1086,7 +1086,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				EndSecond:   EndSecond,
 				SourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				MediaKind:   MediaVideo,
-			}, YTDLPOptions{}),
+			}, ""),
 			func(ctx context.Context, _ string, args ...string) *exec.Cmd {
 				return helperCommand(ctx, "success", args...)
 			},
@@ -1101,7 +1101,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				EndSecond:   10,
 				SourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				MediaKind:   MediaVideo,
-			}, YTDLPOptions{}),
+			}, ""),
 			func(ctx context.Context, _ string, args ...string) *exec.Cmd {
 				return helperCommand(ctx, "success", args...)
 			},
@@ -1116,7 +1116,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				EndSecond:   EndSecond,
 				SourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				MediaKind:   MediaVideo,
-			}, YTDLPOptions{}),
+			}, ""),
 			func(ctx context.Context, _ string, args ...string) *exec.Cmd {
 				return helperCommand(ctx, "empty-success", args...)
 			},
@@ -1131,7 +1131,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				EndSecond:   EndSecond,
 				SourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				MediaKind:   MediaVideo,
-			}, YTDLPOptions{}),
+			}, ""),
 			func(ctx context.Context, _ string, args ...string) *exec.Cmd {
 				return helperCommand(ctx, "success-with-spaces", args...)
 			},
@@ -1146,7 +1146,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				EndSecond:   EndSecond,
 				SourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				MediaKind:   MediaVideo,
-			}, YTDLPOptions{}),
+			}, ""),
 			func(ctx context.Context, _ string, args ...string) *exec.Cmd {
 				return helperCommand(ctx, "stderr-and-fail", args...)
 			},
@@ -1161,7 +1161,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				EndSecond:   EndSecond,
 				SourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				MediaKind:   MediaVideo,
-			}, YTDLPOptions{}),
+			}, ""),
 			func(ctx context.Context, _ string, args ...string) *exec.Cmd {
 				return helperCommand(ctx, "fail-without-stderr", args...)
 			},
@@ -1176,7 +1176,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				EndSecond:   EndSecond,
 				SourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				MediaKind:   MediaVideo,
-			}, YTDLPOptions{}),
+			}, ""),
 			func(ctx context.Context, _ string, args ...string) *exec.Cmd {
 				return helperCommand(ctx, "multiline-stdout", args...)
 			},
@@ -1191,7 +1191,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				EndSecond:   EndSecond,
 				SourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 				MediaKind:   MediaVideo,
-			}, YTDLPOptions{}),
+			}, ""),
 			func(ctx context.Context, _ string, args ...string) *exec.Cmd {
 				return helperCommand(ctx, "directory-output", args...)
 			},
@@ -1243,7 +1243,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 			EndSecond:   EndSecond,
 			SourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 			MediaKind:   MediaVideo,
-		}, YTDLPOptions{}).Download(ctx)
+		}, "").Download(ctx)
 
 		if err == nil {
 			t.Fatal("got nil error, want error")

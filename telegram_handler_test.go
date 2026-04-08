@@ -261,7 +261,7 @@ func TestNewDownloadRequestHandler(t *testing.T) {
 				tc.logger,
 				[]int64{777},
 				2*time.Minute,
-				YTDLPOptions{},
+				"",
 				tc.queue,
 				tc.wg,
 			)
@@ -292,7 +292,7 @@ func TestDownloadRequestHandlerHandleUpdateIgnoresNilMessageOrSender(t *testing.
 		newHandlerTestLogger(),
 		[]int64{777},
 		time.Minute,
-		YTDLPOptions{},
+		"",
 		make(chan DownloadJob, 1),
 		&sync.WaitGroup{},
 	)
@@ -342,7 +342,7 @@ func TestDownloadRequestHandlerHandleUpdateIgnoresRequestWhenShutdownInProgress(
 		logger,
 		[]int64{777},
 		time.Minute,
-		YTDLPOptions{},
+		"",
 		make(chan DownloadJob, 1),
 		&sync.WaitGroup{},
 	)
@@ -375,7 +375,7 @@ func TestDownloadRequestHandlerHandleUpdateRejectsUnauthorizedUser(t *testing.T)
 		newHandlerTestLogger(),
 		[]int64{999},
 		time.Minute,
-		YTDLPOptions{},
+		"",
 		make(chan DownloadJob, 1),
 		&sync.WaitGroup{},
 	)
@@ -429,7 +429,7 @@ func TestDownloadRequestHandlerHandleUpdateParseFailures(t *testing.T) {
 				newHandlerTestLogger(),
 				[]int64{777},
 				time.Minute,
-				YTDLPOptions{},
+				"",
 				make(chan DownloadJob, 1),
 				&sync.WaitGroup{},
 			)
@@ -463,7 +463,7 @@ func TestDownloadRequestHandlerHandleUpdateEnqueuesJobAndSendsAck(t *testing.T) 
 		newHandlerTestLogger(),
 		[]int64{777},
 		2*time.Minute,
-		YTDLPOptions{ConfigPath: "/home/arthur/.config/gatonaranja/yt-dlp.conf"},
+		"/home/arthur/.config/gatonaranja/yt-dlp.conf",
 		downloadQueue,
 		&downloadsWG,
 	)
@@ -492,7 +492,7 @@ func TestDownloadRequestHandlerHandleUpdateEnqueuesJobAndSendsAck(t *testing.T) 
 		if job.Message != message {
 			t.Fatal("queued job message does not match original message")
 		}
-		if got, want := job.YTDLPOptions.ConfigPath, "/home/arthur/.config/gatonaranja/yt-dlp.conf"; got != want {
+		if got, want := job.YTDLPConfig, "/home/arthur/.config/gatonaranja/yt-dlp.conf"; got != want {
 			t.Fatalf("queued YTDLP config path = %q, want %q", got, want)
 		}
 		if got, want := job.DownloadRequest.MediaKind, MediaAudio; got != want {
@@ -524,7 +524,7 @@ func TestDownloadRequestHandlerHandleUpdateRejectsWhenQueueIsFull(t *testing.T) 
 		newHandlerTestLogger(),
 		[]int64{777},
 		time.Minute,
-		YTDLPOptions{},
+		"",
 		downloadQueue,
 		&downloadsWG,
 	)
@@ -558,7 +558,7 @@ func TestDownloadRequestHandlerHandleUpdateRejectsWhenShutdownStartsBeforeEnqueu
 		newHandlerTestLogger(),
 		[]int64{777},
 		time.Minute,
-		YTDLPOptions{},
+		"",
 		downloadQueue,
 		&downloadsWG,
 	)
@@ -882,7 +882,7 @@ func TestDownloadWorkerProcessesQueuedJob(t *testing.T) {
 			SourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
 			MediaKind:   MediaVideo,
 		},
-		YTDLPOptions: YTDLPOptions{ConfigPath: "/home/arthur/.config/gatonaranja/yt-dlp.conf"},
+		YTDLPConfig: "/home/arthur/.config/gatonaranja/yt-dlp.conf",
 	}
 	close(jobs)
 

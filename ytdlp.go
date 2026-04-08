@@ -35,12 +35,6 @@ type MediaDownloader interface {
 	MediaKind() MediaKind
 }
 
-// YTDLPOptions contains runtime yt-dlp configuration controlled by the bot
-// operator rather than by the Telegram request itself.
-type YTDLPOptions struct {
-	ConfigPath string
-}
-
 // DownloadRequest describes the source URL, timestamp range, and media kind
 // for a media download request.
 type DownloadRequest struct {
@@ -50,19 +44,19 @@ type DownloadRequest struct {
 	SourceURL   string
 }
 
-// YTDLPDownloader executes a download request with the given yt-dlp runtime
-// options.
+// YTDLPDownloader executes a download request with an optional explicit
+// yt-dlp configuration file path.
 type YTDLPDownloader struct {
-	request DownloadRequest
-	options YTDLPOptions
+	request         DownloadRequest
+	ytdlpConfigPath string
 }
 
-// NewYTDLPDownloader creates a MediaDownloader that applies the given runtime
-// yt-dlp options when downloading the request.
-func NewYTDLPDownloader(request DownloadRequest, options YTDLPOptions) YTDLPDownloader {
+// NewYTDLPDownloader creates a MediaDownloader that applies the given explicit
+// yt-dlp configuration file path when downloading the request.
+func NewYTDLPDownloader(request DownloadRequest, ytdlpConfigPath string) YTDLPDownloader {
 	return YTDLPDownloader{
-		request: request,
-		options: options,
+		request:         request,
+		ytdlpConfigPath: strings.TrimSpace(ytdlpConfigPath),
 	}
 }
 
@@ -241,8 +235,9 @@ func (d YTDLPDownloader) MediaKind() MediaKind {
 }
 
 // BuildCommand builds the yt-dlp command for the wrapped download request and
-// runtime options, including optional section download and audio extraction
-// flags. It returns the arguments ready to be passed to "[exec.Command]".
+// explicit yt-dlp configuration file path, including optional section download
+// and audio extraction flags. It returns the arguments ready to be passed to
+// "[exec.Command]".
 func (d YTDLPDownloader) BuildCommand() ([]string, error) {
 	cmd := []string{
 		"yt-dlp",
@@ -252,8 +247,8 @@ func (d YTDLPDownloader) BuildCommand() ([]string, error) {
 		"--ignore-config",
 	}
 
-	if d.options.ConfigPath != "" {
-		cmd = append(cmd, "--config-locations", d.options.ConfigPath)
+	if d.ytdlpConfigPath != "" {
+		cmd = append(cmd, "--config-locations", d.ytdlpConfigPath)
 	}
 
 	if d.request.StartSecond != StartSecond || d.request.EndSecond != EndSecond {
@@ -286,8 +281,8 @@ func (d YTDLPDownloader) BuildCommand() ([]string, error) {
 }
 
 // Download executes yt-dlp for the wrapped request using the provided context
-// and runtime options, and returns the final output filepath reported by
-// yt-dlp.
+// and explicit yt-dlp configuration file path, and returns the final output
+// filepath reported by yt-dlp.
 func (d YTDLPDownloader) Download(ctx context.Context) (string, error) {
 	cmdArgs, err := d.BuildCommand()
 	if err != nil {
