@@ -28,8 +28,8 @@ const (
 	MediaVideo
 )
 
-// MediaDownloader describes a media download request that can download itself
-// using a context and report the kind of media it produces.
+// MediaDownloader describes something that can download media using a context
+// and report the kind of media it produces.
 type MediaDownloader interface {
 	Download(ctx context.Context) (string, error)
 	MediaKind() MediaKind
@@ -240,10 +240,9 @@ func (d YTDLPDownloader) MediaKind() MediaKind {
 	return d.request.MediaKind
 }
 
-// BuildCommand builds the yt-dlp command for the download request using the
-// given output filepath file and runtime options, including optional section
-// download and audio extraction flags. It returns the arguments ready to be
-// passed to "[exec.Command]".
+// BuildCommand builds the yt-dlp command for the wrapped download request and
+// runtime options, including optional section download and audio extraction
+// flags. It returns the arguments ready to be passed to "[exec.Command]".
 func (d YTDLPDownloader) BuildCommand() ([]string, error) {
 	cmd := []string{
 		"yt-dlp",
