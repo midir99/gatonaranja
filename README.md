@@ -151,7 +151,7 @@ Run the bot with:
 ./bin/gatonaranja -telegram-bot-token "<YOUR_TELEGRAM_BOT_TOKEN>"
 ```
 
-Optionally restrict which Telegram users can use the bot and tune download concurrency, queue size, and timeout:
+Optionally restrict which Telegram users can use the bot and tune download concurrency, queue size, timeout and yt-dlp configuration:
 
 ```bash
 ./bin/gatonaranja \
@@ -196,6 +196,11 @@ Optionally restrict which Telegram users can use the bot and tune download concu
   Can also be set with `YTDLP_CONFIG`.
   When omitted, gatonaranja runs yt-dlp with `--ignore-config` so ambient
   system or user yt-dlp configs do not affect the bot.
+  Use `YTDLP_CONFIG` only for advanced operator settings such as cookies, proxy,
+  authentication, or extractor/network workarounds.
+  Avoid setting options that change how gatonaranja obtains or locates the final
+  downloaded file, such as `--print`, `--output`, or `--paths`. These can interfere
+  with the bot's download flow and cause requests to fail.
 
 - `-version`
   Print the application version and exit.
@@ -338,7 +343,7 @@ Recommended paths for the user service setup are:
 The easiest way to install this layout is:
 
 ```bash
-./install-systemd-user.sh
+curl -fsSL https://github.com/midir99/gatonaranja/releases/latest/download/install-systemd-user.sh | bash -s
 ```
 
 If you are installing manually, reload and enable the user service with:

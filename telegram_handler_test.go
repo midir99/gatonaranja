@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -156,6 +157,10 @@ func waitForWaitGroup(t *testing.T, wg *sync.WaitGroup) {
 	case <-time.After(time.Second):
 		t.Fatal("wait group did not finish in time")
 	}
+}
+
+func telegramHandlerHelperOutputPath() string {
+	return filepath.Join(os.TempDir(), "gatonaranja-telegram-handler-helper-file.mp4")
 }
 
 type secondDoneCanceledContext struct {
@@ -490,16 +495,16 @@ func TestDownloadRequestHandlerHandleUpdateEnqueuesJobAndSendsAck(t *testing.T) 
 		if got, want := job.YTDLPOptions.ConfigPath, "/home/arthur/.config/gatonaranja/yt-dlp.conf"; got != want {
 			t.Fatalf("queued YTDLP config path = %q, want %q", got, want)
 		}
-		if got, want := job.DownloadRequest.mediaKind, MediaAudio; got != want {
+		if got, want := job.DownloadRequest.MediaKind, MediaAudio; got != want {
 			t.Fatalf("queued media kind = %v, want %v", got, want)
 		}
-		if got, want := job.DownloadRequest.startSecond, 60; got != want {
+		if got, want := job.DownloadRequest.StartSecond, 60; got != want {
 			t.Fatalf("queued startSecond = %d, want %d", got, want)
 		}
-		if got, want := job.DownloadRequest.endSecond, 65; got != want {
+		if got, want := job.DownloadRequest.EndSecond, 65; got != want {
 			t.Fatalf("queued endSecond = %d, want %d", got, want)
 		}
-		if got, want := job.DownloadRequest.sourceURL, "https://www.youtube.com/watch?v=AqjB8DGt85U"; got != want {
+		if got, want := job.DownloadRequest.SourceURL, "https://www.youtube.com/watch?v=AqjB8DGt85U"; got != want {
 			t.Fatalf("queued sourceURL = %q, want %q", got, want)
 		}
 		downloadsWG.Done()
@@ -836,25 +841,14 @@ func TestTelegramHandlerHelperProcess(_ *testing.T) {
 
 	helperArgs := args[separatorIndex+1:]
 	mode := helperArgs[0]
-	commandArgs := helperArgs[1:]
-	outputFilePath := ""
-	for i := 0; i < len(commandArgs)-2; i++ {
-		if commandArgs[i] == "--print-to-file" && commandArgs[i+1] == "after_move:filepath" {
-			outputFilePath = commandArgs[i+2]
-			break
-		}
-	}
 
 	switch mode {
 	case "success":
-		if outputFilePath == "" {
-			fmt.Fprint(os.Stderr, "missing --print-to-file output path")
-			os.Exit(2)
-		}
-		if err := os.WriteFile(outputFilePath, []byte("file.mp4"), 0o600); err != nil {
+		if err := os.WriteFile(telegramHandlerHelperOutputPath(), []byte("video"), 0o600); err != nil {
 			fmt.Fprint(os.Stderr, err.Error())
 			os.Exit(2)
 		}
+		fmt.Fprint(os.Stdout, telegramHandlerHelperOutputPath())
 		os.Exit(0)
 	default:
 		fmt.Fprint(os.Stderr, "unknown helper mode")
@@ -883,10 +877,10 @@ func TestDownloadWorkerProcessesQueuedJob(t *testing.T) {
 	jobs <- DownloadJob{
 		Message: newHandlerTestMessage("https://www.youtube.com/watch?v=IFbXnS1odNs"),
 		DownloadRequest: DownloadRequest{
-			startSecond: StartSecond,
-			endSecond:   EndSecond,
-			sourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
-			mediaKind:   MediaVideo,
+			StartSecond: StartSecond,
+			EndSecond:   EndSecond,
+			SourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
+			MediaKind:   MediaVideo,
 		},
 		YTDLPOptions: YTDLPOptions{ConfigPath: "/home/arthur/.config/gatonaranja/yt-dlp.conf"},
 	}
@@ -920,7 +914,7 @@ func TestDownloadWorkerProcessesQueuedJob(t *testing.T) {
 	if got, want := len(client.sendVideoCalls), 1; got != want {
 		t.Fatalf("len(sendVideoCalls) = %d, want %d", got, want)
 	}
-	if got, want := client.sendVideoCalls[0].filePath, "file.mp4"; got != want {
+	if got, want := client.sendVideoCalls[0].filePath, telegramHandlerHelperOutputPath(); got != want {
 		t.Fatalf("video filepath = %q, want %q", got, want)
 	}
 	if !strings.Contains(strings.Join(gotArgs, "\x00"), "--config-locations") {
