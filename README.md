@@ -12,6 +12,7 @@ It is designed to be simple to run as a standalone binary and easy to deploy as 
 - [Installation](#installation)
 - [Install With Go](#install-with-go)
 - [Usage](#usage)
+- [Uninstall](#uninstall)
 - [Telegram Request Format](#telegram-request-format)
 - [Supported Timestamp Formats](#supported-timestamp-formats)
 - [Make Targets](#make-targets)
@@ -148,6 +149,9 @@ You can install without enabling the service yet:
 ./install-systemd-user.sh --skip-enable
 ```
 
+Each release also includes `uninstall-systemd-user.sh` if you later want to
+remove the user service layout.
+
 After installation, edit:
 
 ```bash
@@ -165,6 +169,26 @@ Then restart the service:
 ```bash
 systemctl --user restart gatonaranja
 ```
+
+## Uninstall
+
+To remove a release-based user-service installation, download the uninstall
+script from the same release and run it:
+
+```bash
+curl -fsSLO https://github.com/midir99/gatonaranja/releases/download/vX.Y.Z/uninstall-systemd-user.sh
+chmod +x uninstall-systemd-user.sh
+./uninstall-systemd-user.sh
+```
+
+For the latest release, you can also run:
+
+```bash
+curl -fsSL https://github.com/midir99/gatonaranja/releases/latest/download/uninstall-systemd-user.sh | bash -s
+```
+
+Use `--help` to see the removal options, including deleting the working
+directory and configuration files.
 
 ## Usage
 
@@ -348,6 +372,7 @@ The release pipeline currently builds:
 - `gatonaranja_linux_arm64.tar.gz`
 - `checksums.txt`
 - `install-systemd-user.sh`
+- `uninstall-systemd-user.sh`
 
 The binary version printed by `-version` prefers the linker-injected release
 version and otherwise falls back to Go build metadata, which keeps
