@@ -1,4 +1,4 @@
-# gatonaranja
+# gatonaranja 😸
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/midir99/gatonaranja)](https://goreportcard.com/report/github.com/midir99/gatonaranja)
 [![Coverage Status](https://coveralls.io/repos/github/midir99/gatonaranja/badge.svg?branch=main)](https://coveralls.io/github/midir99/gatonaranja?branch=main)
@@ -8,6 +8,8 @@
 `gatonaranja` is a Telegram bot for downloading YouTube videos, clips, and audio.
 
 It is designed to be simple to run as a standalone binary and easy to deploy as a `systemd` service.
+
+Try it on Telegram: [@gatonaranjabot](https://t.me/gatonaranjabot)
 
 ## Index
 
