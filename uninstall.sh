@@ -8,11 +8,16 @@ BIN_PATH="${HOME}/.local/bin/${APP_NAME}"
 DATA_DIR="${HOME}/.local/share/${APP_NAME}"
 CONFIG_DIR="${HOME}/.config/${APP_NAME}"
 ENV_PATH="${CONFIG_DIR}/${APP_NAME}.env"
+YTDLP_CONFIG_PATH="${CONFIG_DIR}/yt-dlp.conf"
 SYSTEMD_USER_DIR="${HOME}/.config/systemd/user"
 SERVICE_PATH="${SYSTEMD_USER_DIR}/${APP_NAME}.service"
 
 REMOVE_DATA="false"
 REMOVE_CONFIG="false"
+SERVICE_REMOVED="false"
+BINARY_REMOVED="false"
+DATA_REMOVED="false"
+CONFIG_REMOVED="false"
 
 log() {
     printf '%s\n' "$*"
@@ -31,7 +36,7 @@ Usage:
 
 Options:
   --remove-data    Also remove ${DATA_DIR}
-  --remove-config  Also remove ${ENV_PATH} and ${CONFIG_DIR} if empty
+  --remove-config  Also remove ${ENV_PATH}, ${YTDLP_CONFIG_PATH}, and ${CONFIG_DIR} if empty
   -h, --help       Show this help message
 
 By default, this script removes the binary and systemd user service, but keeps
@@ -74,7 +79,6 @@ disable_service() {
 
     if [[ -f "$SERVICE_PATH" ]]; then
         systemctl --user disable --now "$APP_NAME" >/dev/null 2>&1 || true
-        systemctl --user daemon-reload >/dev/null 2>&1 || true
         log "Disabled and stopped ${APP_NAME} user service"
     fi
 }
@@ -82,6 +86,7 @@ disable_service() {
 remove_service_file() {
     if [[ -f "$SERVICE_PATH" ]]; then
         rm -f "$SERVICE_PATH"
+        SERVICE_REMOVED="true"
         log "Removed service file ${SERVICE_PATH}"
     else
         log "Service file not found, skipping: ${SERVICE_PATH}"
@@ -91,6 +96,7 @@ remove_service_file() {
 remove_binary() {
     if [[ -f "$BIN_PATH" ]]; then
         rm -f "$BIN_PATH"
+        BINARY_REMOVED="true"
         log "Removed binary ${BIN_PATH}"
     else
         log "Binary not found, skipping: ${BIN_PATH}"
@@ -105,6 +111,7 @@ remove_data() {
 
     if [[ -d "$DATA_DIR" ]]; then
         rm -rf "$DATA_DIR"
+        DATA_REMOVED="true"
         log "Removed working directory ${DATA_DIR}"
     else
         log "Working directory not found, skipping: ${DATA_DIR}"
@@ -123,16 +130,36 @@ remove_config() {
     else
         log "Configuration file not found, skipping: ${ENV_PATH}"
     fi
+    if [[ -f "$YTDLP_CONFIG_PATH" ]]; then
+        rm -f "$YTDLP_CONFIG_PATH"
+        log "Removed yt-dlp configuration file ${YTDLP_CONFIG_PATH}"
+    else
+        log "yt-dlp configuration file not found, skipping: ${YTDLP_CONFIG_PATH}"
+    fi
 
     if [[ -d "$CONFIG_DIR" ]]; then
-        rmdir "$CONFIG_DIR" >/dev/null 2>&1 || true
+        if rmdir "$CONFIG_DIR" >/dev/null 2>&1; then
+            CONFIG_REMOVED="true"
+            log "Removed configuration directory ${CONFIG_DIR}"
+        else
+            warn "kept configuration directory ${CONFIG_DIR} because it is not empty"
+        fi
     fi
+}
+
+reload_systemd_daemon() {
+    if ! has_systemctl; then
+        return
+    fi
+
+    systemctl --user daemon-reload >/dev/null 2>&1 || true
 }
 
 main() {
     parse_args "$@"
     disable_service
     remove_service_file
+    reload_systemd_daemon
     remove_binary
     remove_data
     remove_config
@@ -141,13 +168,19 @@ main() {
 
 Uninstall complete.
 
-Removed:
-  Binary:  ${BIN_PATH}
-  Service: ${SERVICE_PATH}
+Service:
+  $(if [[ "$SERVICE_REMOVED" == "true" ]]; then printf 'Removed'; else printf 'Not present'; fi): ${SERVICE_PATH}
 
-Kept by default:
-  Working dir: ${DATA_DIR}
-  Config file: ${ENV_PATH}
+Binary:
+  $(if [[ "$BINARY_REMOVED" == "true" ]]; then printf 'Removed'; else printf 'Not present'; fi): ${BIN_PATH}
+
+Working dir:
+  $(if [[ "$DATA_REMOVED" == "true" ]]; then printf 'Removed'; else printf 'Kept'; fi): ${DATA_DIR}
+
+Config:
+  $(if [[ "$CONFIG_REMOVED" == "true" ]]; then printf 'Removed directory'; else printf 'Kept directory or remaining files'; fi): ${CONFIG_DIR}
+  Env file path: ${ENV_PATH}
+  yt-dlp config path: ${YTDLP_CONFIG_PATH}
 
 Use --remove-data and/or --remove-config if you also want to delete those.
 EOF

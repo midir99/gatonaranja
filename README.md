@@ -10,6 +10,7 @@ It is designed to be simple to run as a standalone binary and easy to deploy as 
 - [Architecture](#architecture)
 - [Requirements](#requirements)
 - [Installation](#installation)
+- [Install With Go](#install-with-go)
 - [Usage](#usage)
 - [Telegram Request Format](#telegram-request-format)
 - [Supported Timestamp Formats](#supported-timestamp-formats)
@@ -89,6 +90,28 @@ You can also build it directly with Go:
 ```bash
 go build -o gatonaranja
 ```
+
+## Install With Go
+
+If you prefer to install only the binary, you can use:
+
+```bash
+go install github.com/midir99/gatonaranja@latest
+```
+
+For a reproducible install, pin a specific version:
+
+```bash
+go install github.com/midir99/gatonaranja@vX.Y.Z
+```
+
+The binary is installed to `$(go env GOBIN)` if it is set, or otherwise to
+`$(go env GOPATH)/bin` (commonly `~/go/bin`).
+
+This installs only the `gatonaranja` binary. It does not install the `systemd`
+service, environment file, or external dependencies such as `yt-dlp` and
+`ffmpeg`. If you want the full user-service setup, use the installer from the
+GitHub releases section below.
 
 ### Install From GitHub Releases
 
@@ -326,8 +349,9 @@ The release pipeline currently builds:
 - `checksums.txt`
 - `install-systemd-user.sh`
 
-The binary version printed by `-version` is injected at build time from the
-Git tag into `main.Version`.
+The binary version printed by `-version` prefers the linker-injected release
+version and otherwise falls back to Go build metadata, which keeps
+`go install github.com/midir99/gatonaranja@vX.Y.Z` builds informative too.
 
 ## Running With systemd
 
