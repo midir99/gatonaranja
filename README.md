@@ -1,5 +1,10 @@
 # gatonaranja
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/midir99/gatonaranja)](https://goreportcard.com/report/github.com/midir99/gatonaranja)
+[![Coverage Status](https://coveralls.io/repos/github/midir99/gatonaranja/badge.svg?branch=main)](https://coveralls.io/github/midir99/gatonaranja?branch=main)
+[![Latest Release](https://img.shields.io/github/v/release/midir99/gatonaranja)](https://github.com/midir99/gatonaranja/releases/latest)
+
+
 `gatonaranja` is a Telegram bot for downloading YouTube videos, clips, and audio.
 
 It is designed to be simple to run as a standalone binary and easy to deploy as a `systemd` service.
@@ -11,8 +16,11 @@ It is designed to be simple to run as a standalone binary and easy to deploy as 
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Install With Go](#install-with-go)
-- [Usage](#usage)
+- [Install From GitHub Releases](#install-from-github-releases)
 - [Uninstall](#uninstall)
+- [Usage](#usage)
+- [Flags](#flags)
+- [Environment Variables](#environment-variables)
 - [Telegram Request Format](#telegram-request-format)
 - [Supported Timestamp Formats](#supported-timestamp-formats)
 - [Make Targets](#make-targets)
