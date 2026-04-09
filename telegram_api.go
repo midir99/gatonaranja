@@ -122,9 +122,11 @@ func (c *TelegramAPIClient) SendText(
 	text string,
 ) (*TelegramAPIMessage, error) {
 	payload := map[string]any{
-		"chat_id":             chatID,
-		"text":                text,
-		"reply_to_message_id": replyToMessageID,
+		"chat_id": chatID,
+		"text":    text,
+	}
+	if replyToMessageID > 0 {
+		payload["reply_to_message_id"] = replyToMessageID
 	}
 	var message TelegramAPIMessage
 	if err := c.postJSON(ctx, "sendMessage", payload, &message); err != nil {

@@ -32,7 +32,7 @@ usage() {
 Uninstall ${APP_NAME} from the current user account.
 
 Usage:
-  ./uninstall.sh [--remove-data] [--remove-config]
+  ./uninstall-systemd-user.sh [--remove-data] [--remove-config]
 
 Options:
   --remove-data    Also remove ${DATA_DIR}

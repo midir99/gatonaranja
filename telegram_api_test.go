@@ -323,6 +323,48 @@ func TestTelegramAPIClientSendText(t *testing.T) {
 	}
 }
 
+func TestTelegramAPIClientSendTextWithoutReplyToMessageID(t *testing.T) {
+	client := newTelegramAPIClientForTest(t, func(req *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			t.Fatalf("reading request body: %v", err)
+		}
+
+		bodyString := string(body)
+		for _, want := range []string{
+			`"chat_id":12345`,
+			`"text":"hello there"`,
+		} {
+			if !strings.Contains(bodyString, want) {
+				t.Fatalf("request body = %q, want substring %q", bodyString, want)
+			}
+		}
+		if strings.Contains(bodyString, `"reply_to_message_id"`) {
+			t.Fatalf("request body = %q, want no reply_to_message_id field", bodyString)
+		}
+
+		return newHTTPResponse(http.StatusOK, `{
+			"ok": true,
+			"result": {
+				"message_id": 1000,
+				"text": "hello there",
+				"chat": {"id": 12345}
+			}
+		}`), nil
+	})
+
+	message, err := client.SendText(context.Background(), 12345, 0, "hello there")
+	if err != nil {
+		t.Fatalf("SendText() error = %v, want nil", err)
+	}
+	if message == nil {
+		t.Fatal("SendText() message = nil, want non-nil")
+	}
+	if got, want := message.MessageID, int64(1000); got != want {
+		t.Fatalf("message.MessageID = %d, want %d", got, want)
+	}
+}
+
 func TestTelegramAPIClientSendVideo(t *testing.T) {
 	videoPath := filepath.Join(t.TempDir(), "clip.mp4")
 	if err := os.WriteFile(videoPath, []byte("video-bytes"), 0o600); err != nil {

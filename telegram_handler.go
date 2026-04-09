@@ -238,11 +238,10 @@ func handleDownloadRequest(
 ) {
 	downloadCtx, cancelDownload := context.WithTimeout(ctx, downloadTimeout)
 	defer cancelDownload()
+	mediaFilename, err := mediaDownloader.Download(downloadCtx)
 
 	sendCtx, cancelSend := context.WithTimeout(ctx, telegramSendGrace)
 	defer cancelSend()
-
-	mediaFilename, err := mediaDownloader.Download(downloadCtx)
 
 	if err != nil {
 		logger.Error(
