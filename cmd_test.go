@@ -2,6 +2,8 @@ package main
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -441,6 +443,88 @@ func TestValidateDownloadTimeout(t *testing.T) {
 			}
 			if downloadTimeout != tc.want {
 				t.Fatalf("got %d, want %d", downloadTimeout, tc.want)
+			}
+		})
+	}
+}
+
+func TestValidateYTDLPConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "yt-dlp.conf")
+	if err := os.WriteFile(configPath, []byte("--proxy http://127.0.0.1:8080\n"), 0o600); err != nil {
+		t.Fatalf("os.WriteFile() error = %v, want nil", err)
+	}
+
+	testCases := []struct {
+		testName    string
+		ytdlpConfig string
+		want        string
+		err         error
+	}{
+		{
+			"empty config path",
+			"",
+			"",
+			nil,
+		},
+		{
+			"absolute config path",
+			configPath,
+			configPath,
+			nil,
+		},
+		{
+			"config path with surrounding spaces",
+			"  " + configPath + "  ",
+			configPath,
+			nil,
+		},
+		{
+			"stdin is rejected",
+			"-",
+			"",
+			errors.New(`invalid ytdlp config "-": stdin is not supported`),
+		},
+		{
+			"nonexistent config file",
+			filepath.Join(tempDir, "missing.conf"),
+			"",
+			errors.New(
+				`invalid ytdlp config "` + filepath.Join(tempDir, "missing.conf") + `": open ` +
+					filepath.Join(tempDir, "missing.conf") + `: no such file or directory`,
+			),
+		},
+		{
+			"directory is rejected",
+			tempDir,
+			"",
+			errors.New(`invalid ytdlp config "` + tempDir + `": must be a regular file`),
+		},
+		{
+			"directory is rejected 2",
+			"~",
+			"",
+			errors.New(`invalid ytdlp config "~": must be a regular file`),
+		},
+		{
+			"directory is rejected 3",
+			"~/",
+			"",
+			errors.New(`invalid ytdlp config "~/": must be a regular file`),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testName, func(t *testing.T) {
+			got, err := validateYTDLPConfig(tc.ytdlpConfig)
+			if tc.err != nil && err == nil {
+				t.Fatalf("got nil, want %q", tc.err.Error())
+			}
+			if tc.err != nil && err != nil && tc.err.Error() != err.Error() {
+				t.Fatalf("got %q, want %q", err.Error(), tc.err.Error())
+			}
+			if got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
 			}
 		})
 	}
@@ -914,6 +998,15 @@ func TestParseConfig(t *testing.T) {
 			},
 			nil,
 		},
+		{
+			"ytdlp config file does not exist",
+			[]string{
+				"-telegram-bot-token", "123:abc",
+				"-ytdlp-config", "/idontexist",
+			},
+			Config{},
+			errors.New(`invalid ytdlp config "/idontexist": open /idontexist: no such file or directory`),
+		},
 	}
 
 	for _, tc := range testCases {
@@ -941,6 +1034,50 @@ func TestParseConfig(t *testing.T) {
 			if config.PrintVersion != tc.want.PrintVersion {
 				t.Fatalf("got %t, want %t", config.PrintVersion, tc.want.PrintVersion)
 			}
+			if config.YTDLPConfig != tc.want.YTDLPConfig {
+				t.Fatalf("got %q, want %q", config.YTDLPConfig, tc.want.YTDLPConfig)
+			}
 		})
+	}
+}
+
+func TestParseConfigWithYTDLPConfigFlag(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "yt-dlp.conf")
+	if err := os.WriteFile(configPath, []byte("--cookies cookies.txt\n"), 0o600); err != nil {
+		t.Fatalf("os.WriteFile() error = %v, want nil", err)
+	}
+
+	config, err := ParseConfig([]string{
+		"-telegram-bot-token", "thisisavalidtelegrambottoken",
+		"-ytdlp-config", configPath,
+	})
+	if err != nil {
+		t.Fatalf("ParseConfig() error = %v, want nil", err)
+	}
+
+	if got, want := config.YTDLPConfig, configPath; got != want {
+		t.Fatalf("config.YTDLPConfig = %q, want %q", got, want)
+	}
+}
+
+func TestParseConfigWithYTDLPConfigEnv(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "yt-dlp.conf")
+	if err := os.WriteFile(configPath, []byte("--proxy socks5://127.0.0.1:9050\n"), 0o600); err != nil {
+		t.Fatalf("os.WriteFile() error = %v, want nil", err)
+	}
+
+	t.Setenv("YTDLP_CONFIG", configPath)
+
+	config, err := ParseConfig([]string{
+		"-telegram-bot-token", "thisisavalidtelegrambottoken",
+	})
+	if err != nil {
+		t.Fatalf("ParseConfig() error = %v, want nil", err)
+	}
+
+	if got, want := config.YTDLPConfig, configPath; got != want {
+		t.Fatalf("config.YTDLPConfig = %q, want %q", got, want)
 	}
 }

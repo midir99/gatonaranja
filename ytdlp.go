@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -27,8 +28,8 @@ const (
 	MediaVideo
 )
 
-// MediaDownloader describes a media download request that can download itself
-// using a context and report the kind of media it produces.
+// MediaDownloader describes something that can download media using a context
+// and report the kind of media it produces.
 type MediaDownloader interface {
 	Download(ctx context.Context) (string, error)
 	MediaKind() MediaKind
@@ -37,10 +38,26 @@ type MediaDownloader interface {
 // DownloadRequest describes the source URL, timestamp range, and media kind
 // for a media download request.
 type DownloadRequest struct {
-	startSecond int
-	endSecond   int
-	mediaKind   MediaKind
-	sourceURL   string
+	StartSecond int
+	EndSecond   int
+	MediaKind   MediaKind
+	SourceURL   string
+}
+
+// YTDLPDownloader executes a download request with an optional explicit
+// yt-dlp configuration file path.
+type YTDLPDownloader struct {
+	request         DownloadRequest
+	ytdlpConfigPath string
+}
+
+// NewYTDLPDownloader creates a MediaDownloader that applies the given explicit
+// yt-dlp configuration file path when downloading the request.
+func NewYTDLPDownloader(request DownloadRequest, ytdlpConfigPath string) YTDLPDownloader {
+	return YTDLPDownloader{
+		request:         request,
+		ytdlpConfigPath: strings.TrimSpace(ytdlpConfigPath),
+	}
 }
 
 // validateYouTubeURL parses rawURL, validates that it is a supported YouTube
@@ -132,16 +149,16 @@ func ParseDownloadRequest(downloadRequestString string) (DownloadRequest, error)
 	}
 
 	downloadRequest := DownloadRequest{
-		startSecond: StartSecond,
-		endSecond:   EndSecond,
-		mediaKind:   MediaVideo,
+		StartSecond: StartSecond,
+		EndSecond:   EndSecond,
+		MediaKind:   MediaVideo,
 	}
 
 	videoURL, err := validateYouTubeURL(args[0])
 	if err != nil {
 		return DownloadRequest{}, fmt.Errorf("%w: %q: %w", ErrInvalidDownloadRequest, downloadRequestString, err)
 	}
-	downloadRequest.sourceURL = videoURL
+	downloadRequest.SourceURL = videoURL
 
 	switch argsNumber {
 	case 1:
@@ -153,15 +170,15 @@ func ParseDownloadRequest(downloadRequestString string) (DownloadRequest, error)
 		// Example: https://www.youtube.com/watch?v=J---aiyznGQ start-0:10
 		// Example: https://www.youtube.com/watch?v=J---aiyznGQ audio
 		if strings.ToLower(args[1]) == "audio" {
-			downloadRequest.mediaKind = MediaAudio
+			downloadRequest.MediaKind = MediaAudio
 			return downloadRequest, nil
 		}
 		startSecond, endSecond, err2 := TimestampRangeToSeconds(args[1])
 		if err2 != nil {
 			return DownloadRequest{}, fmt.Errorf("%w: %q: %w", ErrInvalidDownloadRequest, downloadRequestString, err2)
 		}
-		downloadRequest.startSecond = startSecond
-		downloadRequest.endSecond = endSecond
+		downloadRequest.StartSecond = startSecond
+		downloadRequest.EndSecond = endSecond
 		return downloadRequest, nil
 	case 3:
 		// If its 3 arguments we received the video URL, a timestamp range and the audio flag.
@@ -170,10 +187,10 @@ func ParseDownloadRequest(downloadRequestString string) (DownloadRequest, error)
 		if err2 != nil {
 			return DownloadRequest{}, fmt.Errorf("%w: %q: %w", ErrInvalidDownloadRequest, downloadRequestString, err2)
 		}
-		downloadRequest.startSecond = startSecond
-		downloadRequest.endSecond = endSecond
+		downloadRequest.StartSecond = startSecond
+		downloadRequest.EndSecond = endSecond
 		if strings.ToLower(args[2]) == "audio" {
-			downloadRequest.mediaKind = MediaAudio
+			downloadRequest.MediaKind = MediaAudio
 			return downloadRequest, nil
 		}
 		return DownloadRequest{}, fmt.Errorf(
@@ -208,26 +225,41 @@ func SecondsToDownloadSections(startSecond, endSecond int) (string, error) {
 	return "*" + start + "-" + end, nil
 }
 
-// MediaKind reports the kind of media produced by the download request.
-func (dr DownloadRequest) MediaKind() MediaKind {
-	return dr.mediaKind
+// commandContext is a test seam for creating yt-dlp commands.
+var commandContext = exec.CommandContext
+
+// MediaKind reports the kind of media produced by the wrapped download
+// request.
+func (d YTDLPDownloader) MediaKind() MediaKind {
+	return d.request.MediaKind
 }
 
-// BuildCommand builds the yt-dlp command for the download request,
-// including optional section download and audio extraction flags, and
-// returns it as a slice of arguments ready to be passed to "[exec.Command]".
-func (dr DownloadRequest) BuildCommand() ([]string, error) {
-	cmd := []string{"yt-dlp", "--no-simulate", "--no-playlist", "--print", "after_move:filepath"}
+// BuildCommand builds the yt-dlp command for the wrapped download request and
+// explicit yt-dlp configuration file path, including optional section download
+// and audio extraction flags. It returns the arguments ready to be passed to
+// "[exec.Command]".
+func (d YTDLPDownloader) BuildCommand() ([]string, error) {
+	cmd := []string{
+		"yt-dlp",
+		"--no-simulate",
+		"--no-playlist",
+		"--print", "after_move:filepath",
+		"--ignore-config",
+	}
 
-	if dr.startSecond != StartSecond || dr.endSecond != EndSecond {
-		downloadSections, err := SecondsToDownloadSections(dr.startSecond, dr.endSecond)
+	if d.ytdlpConfigPath != "" {
+		cmd = append(cmd, "--config-locations", d.ytdlpConfigPath)
+	}
+
+	if d.request.StartSecond != StartSecond || d.request.EndSecond != EndSecond {
+		downloadSections, err := SecondsToDownloadSections(d.request.StartSecond, d.request.EndSecond)
 		if err != nil {
 			return nil, err
 		}
 		cmd = append(cmd, "--download-sections", downloadSections)
 	}
 
-	if dr.MediaKind() == MediaAudio {
+	if d.request.MediaKind == MediaAudio {
 		cmd = append(cmd, "--extract-audio", "--audio-format", "mp3")
 	}
 	// Use a Telegram-friendly fallback format selection strategy:
@@ -243,18 +275,16 @@ func (dr DownloadRequest) BuildCommand() ([]string, error) {
 		"+size,+br,+res,+fps",
 		"--output",
 		"%(title)s.%(ext)s",
-		dr.sourceURL,
+		d.request.SourceURL,
 	)
 	return cmd, nil
 }
 
-// commandContext is a test seam for creating yt-dlp commands.
-var commandContext = exec.CommandContext
-
-// Download executes the yt-dlp command for the download request using the
-// provided context, and returns the final output filepath reported by yt-dlp.
-func (dr DownloadRequest) Download(ctx context.Context) (string, error) {
-	cmdArgs, err := dr.BuildCommand()
+// Download executes yt-dlp for the wrapped request using the provided context
+// and explicit yt-dlp configuration file path, and returns the final output
+// filepath reported by yt-dlp.
+func (d YTDLPDownloader) Download(ctx context.Context) (string, error) {
+	cmdArgs, err := d.BuildCommand()
 	if err != nil {
 		return "", err
 	}
@@ -274,6 +304,14 @@ func (dr DownloadRequest) Download(ctx context.Context) (string, error) {
 	outputPath := strings.TrimSpace(stdout.String())
 	if outputPath == "" {
 		return "", errors.New("yt-dlp succeeded but did not print the output filepath")
+	}
+
+	fileInfo, err := os.Stat(outputPath)
+	if err != nil {
+		return "", fmt.Errorf("yt-dlp printed output filepath %q but it is not accessible: %w", outputPath, err)
+	}
+	if !fileInfo.Mode().IsRegular() {
+		return "", fmt.Errorf("yt-dlp printed output filepath %q but it is not a regular file", outputPath)
 	}
 
 	return outputPath, nil

@@ -13,9 +13,6 @@ import (
 	"time"
 )
 
-// Version identifies the application version printed by -version. It defaults to "dev" and can be overridden at build time with -ldflags.
-var Version = "dev"
-
 // newLogger creates the application logger used by the bot.
 func newLogger() *slog.Logger {
 	return slog.New(
@@ -36,7 +33,7 @@ func run(logger *slog.Logger) error {
 	}
 
 	if config.PrintVersion {
-		fmt.Printf("gatonaranja %s\n", Version)
+		fmt.Printf("gatonaranja %s\n", currentVersion())
 		return nil
 	}
 
@@ -97,6 +94,7 @@ func run(logger *slog.Logger) error {
 		logger,
 		config.AuthorizedUsers,
 		config.DownloadTimeout,
+		config.YTDLPConfig,
 		downloadJobsQueue,
 		&downloadsWG,
 	)

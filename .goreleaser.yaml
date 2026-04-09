@@ -33,3 +33,4 @@ release:
   prerelease: auto
   extra_files:
     - glob: ./install-systemd-user.sh
+    - glob: ./uninstall-systemd-user.sh

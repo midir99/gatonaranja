@@ -24,6 +24,7 @@ clean:
 ## fmt: format the code using golangci-lint
 fmt:
 	golangci-lint fmt
+	shfmt -i 4 -w .
 
 
 ## test: run the tests

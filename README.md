@@ -10,7 +10,9 @@ It is designed to be simple to run as a standalone binary and easy to deploy as 
 - [Architecture](#architecture)
 - [Requirements](#requirements)
 - [Installation](#installation)
+- [Install With Go](#install-with-go)
 - [Usage](#usage)
+- [Uninstall](#uninstall)
 - [Telegram Request Format](#telegram-request-format)
 - [Supported Timestamp Formats](#supported-timestamp-formats)
 - [Make Targets](#make-targets)
@@ -90,6 +92,28 @@ You can also build it directly with Go:
 go build -o gatonaranja
 ```
 
+## Install With Go
+
+If you prefer to install only the binary, you can use:
+
+```bash
+go install github.com/midir99/gatonaranja@latest
+```
+
+For a reproducible install, pin a specific version:
+
+```bash
+go install github.com/midir99/gatonaranja@vX.Y.Z
+```
+
+The binary is installed to `$(go env GOBIN)` if it is set, or otherwise to
+`$(go env GOPATH)/bin` (commonly `~/go/bin`).
+
+This installs only the `gatonaranja` binary. It does not install the `systemd`
+service, environment file, or external dependencies such as `yt-dlp` and
+`ffmpeg`. If you want the full user-service setup, use the installer from the
+GitHub releases section below.
+
 ### Install From GitHub Releases
 
 You can install `gatonaranja` as a user-scoped service with the provided
@@ -125,6 +149,9 @@ You can install without enabling the service yet:
 ./install-systemd-user.sh --skip-enable
 ```
 
+Each release also includes `uninstall-systemd-user.sh` if you later want to
+remove the user service layout.
+
 After installation, edit:
 
 ```bash
@@ -143,6 +170,26 @@ Then restart the service:
 systemctl --user restart gatonaranja
 ```
 
+## Uninstall
+
+To remove a release-based user-service installation, download the uninstall
+script from the same release and run it:
+
+```bash
+curl -fsSLO https://github.com/midir99/gatonaranja/releases/download/vX.Y.Z/uninstall-systemd-user.sh
+chmod +x uninstall-systemd-user.sh
+./uninstall-systemd-user.sh
+```
+
+For the latest release, you can also run:
+
+```bash
+curl -fsSL https://github.com/midir99/gatonaranja/releases/latest/download/uninstall-systemd-user.sh | bash -s
+```
+
+Use `--help` to see the removal options, including deleting the working
+directory and configuration files.
+
 ## Usage
 
 Run the bot with:
@@ -151,7 +198,7 @@ Run the bot with:
 ./bin/gatonaranja -telegram-bot-token "<YOUR_TELEGRAM_BOT_TOKEN>"
 ```
 
-Optionally restrict which Telegram users can use the bot and tune download concurrency, queue size, and timeout:
+Optionally restrict which Telegram users can use the bot and tune download concurrency, queue size, timeout and yt-dlp configuration:
 
 ```bash
 ./bin/gatonaranja \
@@ -159,7 +206,8 @@ Optionally restrict which Telegram users can use the bot and tune download concu
   -authorized-users "123456789,987654321" \
   -max-concurrent-downloads 5 \
   -max-queued-downloads 5 \
-  -download-timeout 5m
+  -download-timeout 5m \
+  -ytdlp-config ~/.config/gatonaranja/yt-dlp.conf
 ```
 
 ### Flags
@@ -189,6 +237,18 @@ Optionally restrict which Telegram users can use the bot and tune download concu
   Defaults to `5m`.
   Can also be set with `DOWNLOAD_TIMEOUT`.
 
+- `-ytdlp-config`
+  Path to an optional yt-dlp configuration file with extra operator-controlled
+  options such as proxy or cookies.
+  Can also be set with `YTDLP_CONFIG`.
+  When omitted, gatonaranja runs yt-dlp with `--ignore-config` so ambient
+  system or user yt-dlp configs do not affect the bot.
+  Use `YTDLP_CONFIG` only for advanced operator settings such as cookies, proxy,
+  authentication, or extractor/network workarounds.
+  Avoid setting options that change how gatonaranja obtains or locates the final
+  downloaded file, such as `--print`, `--output`, or `--paths`. These can interfere
+  with the bot's download flow and cause requests to fail.
+
 - `-version`
   Print the application version and exit.
 
@@ -201,6 +261,7 @@ You can provide configuration through environment variables instead of flags:
 - `MAX_CONCURRENT_DOWNLOADS`
 - `MAX_QUEUED_DOWNLOADS`
 - `DOWNLOAD_TIMEOUT`
+- `YTDLP_CONFIG`
 
 Example:
 
@@ -210,6 +271,7 @@ export AUTHORIZED_USERS="123456789,987654321"
 export MAX_CONCURRENT_DOWNLOADS="5"
 export MAX_QUEUED_DOWNLOADS="5"
 export DOWNLOAD_TIMEOUT="5m"
+export YTDLP_CONFIG="$HOME/.config/gatonaranja/yt-dlp.conf"
 
 ./bin/gatonaranja
 ```
@@ -310,9 +372,11 @@ The release pipeline currently builds:
 - `gatonaranja_linux_arm64.tar.gz`
 - `checksums.txt`
 - `install-systemd-user.sh`
+- `uninstall-systemd-user.sh`
 
-The binary version printed by `-version` is injected at build time from the
-Git tag into `main.Version`.
+The binary version printed by `-version` prefers the linker-injected release
+version and otherwise falls back to Go build metadata, which keeps
+`go install github.com/midir99/gatonaranja@vX.Y.Z` builds informative too.
 
 ## Running With systemd
 
@@ -328,7 +392,7 @@ Recommended paths for the user service setup are:
 The easiest way to install this layout is:
 
 ```bash
-./install-systemd-user.sh
+curl -fsSL https://github.com/midir99/gatonaranja/releases/latest/download/install-systemd-user.sh | bash -s
 ```
 
 If you are installing manually, reload and enable the user service with:

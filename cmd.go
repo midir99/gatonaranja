@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -18,6 +19,7 @@ type Config struct {
 	MaxConcurrentDownloads int
 	MaxQueuedDownloads     int
 	DownloadTimeout        time.Duration
+	YTDLPConfig            string
 	PrintVersion           bool
 }
 
@@ -113,6 +115,53 @@ func validateDownloadTimeout(downloadTimeout string) (time.Duration, error) {
 	return downloadTimeoutDuration, nil
 }
 
+// validateYTDLPConfig validates an optional yt-dlp configuration file path,
+// expands a leading "~", normalizes it to an absolute path, and ensures the
+// final path points to a readable regular file.
+func validateYTDLPConfig(ytdlpConfig string) (string, error) {
+	ytdlpConfigTrimmed := strings.TrimSpace(ytdlpConfig)
+	if ytdlpConfigTrimmed == "" {
+		return "", nil
+	}
+
+	if ytdlpConfigTrimmed == "-" {
+		return "", fmt.Errorf("invalid ytdlp config %q: stdin is not supported", ytdlpConfig)
+	}
+
+	if ytdlpConfigTrimmed == "~" || strings.HasPrefix(ytdlpConfigTrimmed, "~/") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("invalid ytdlp config %q: resolve home directory: %w", ytdlpConfig, err)
+		}
+		if ytdlpConfigTrimmed == "~" {
+			ytdlpConfigTrimmed = homeDir
+		} else {
+			ytdlpConfigTrimmed = filepath.Join(homeDir, strings.TrimPrefix(ytdlpConfigTrimmed, "~/"))
+		}
+	}
+
+	ytdlpConfigAbsPath, err := filepath.Abs(ytdlpConfigTrimmed)
+	if err != nil {
+		return "", fmt.Errorf("invalid ytdlp config %q: %w", ytdlpConfig, err)
+	}
+
+	ytdlpConfigFile, err := os.Open(ytdlpConfigAbsPath)
+	if err != nil {
+		return "", fmt.Errorf("invalid ytdlp config %q: %w", ytdlpConfig, err)
+	}
+	defer ytdlpConfigFile.Close()
+
+	ytdlpConfigFileInfo, err := ytdlpConfigFile.Stat()
+	if err != nil {
+		return "", fmt.Errorf("invalid ytdlp config %q: %w", ytdlpConfig, err)
+	}
+	if !ytdlpConfigFileInfo.Mode().IsRegular() {
+		return "", fmt.Errorf("invalid ytdlp config %q: must be a regular file", ytdlpConfig)
+	}
+
+	return ytdlpConfigAbsPath, nil
+}
+
 // flagOrEnv returns the trimmed flag value when it is not empty; otherwise it
 // returns the trimmed value of the given environment variable.
 func flagOrEnv(variableValue, variableEnvName string) string {
@@ -150,6 +199,7 @@ func ParseConfig(args []string) (Config, error) {
 		maxConcurrentDownloads string
 		maxQueuedDownloads     string
 		downloadTimeout        string
+		ytdlpConfig            string
 		printVersion           bool
 	)
 
@@ -182,6 +232,12 @@ func ParseConfig(args []string) (Config, error) {
 		"download-timeout",
 		"",
 		"Maximum time allowed for a single download before it is canceled, for example: 30s, 2m, or 5m (default: 5m; can also be set with DOWNLOAD_TIMEOUT)",
+	)
+	fs.StringVar(
+		&ytdlpConfig,
+		"ytdlp-config",
+		"",
+		"A yt-dlp configuration file with extra options such as proxy or cookies (can also be set with YTDLP_CONFIG)",
 	)
 	fs.BoolVar(
 		&printVersion,
@@ -231,6 +287,13 @@ func ParseConfig(args []string) (Config, error) {
 		return Config{}, err
 	}
 
+	ytdlpConfig = flagOrEnv(ytdlpConfig, "YTDLP_CONFIG")
+	ytdlpConfig = defaultTo(ytdlpConfig, "")
+	ytdlpConfig, err = validateYTDLPConfig(ytdlpConfig)
+	if err != nil {
+		return Config{}, err
+	}
+
 	// Prepare the configuration
 	config := Config{
 		AuthorizedUsers:        authorizedUsersArray,
@@ -238,6 +301,7 @@ func ParseConfig(args []string) (Config, error) {
 		MaxConcurrentDownloads: maxConcurrentDownloadsInt,
 		MaxQueuedDownloads:     maxQueuedDownloadsInt,
 		DownloadTimeout:        downloadTimeoutDuration,
+		YTDLPConfig:            ytdlpConfig,
 	}
 	return config, nil
 }
