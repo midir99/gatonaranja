@@ -74,6 +74,24 @@ func TestValidateYouTubeURL(t *testing.T) {
 			nil,
 		},
 		{
+			"live url",
+			"https://www.youtube.com/live/dQw4w9WgXcQ",
+			"https://www.youtube.com/live/dQw4w9WgXcQ",
+			nil,
+		},
+		{
+			"live url strips playlist parameters",
+			"https://www.youtube.com/live/dQw4w9WgXcQ?list=PL123456&index=7",
+			"https://www.youtube.com/live/dQw4w9WgXcQ",
+			nil,
+		},
+		{
+			"live url keeps non playlist query parameters",
+			"https://www.youtube.com/live/dQw4w9WgXcQ?feature=share&list=PL123456",
+			"https://www.youtube.com/live/dQw4w9WgXcQ?feature=share",
+			nil,
+		},
+		{
 			"watch url strips playlist parameters",
 			"https://music.youtube.com/watch?v=5X-Mrc2l1d0&list=RDAMVM5X-Mrc2l1d0&index=7",
 			"https://music.youtube.com/watch?v=5X-Mrc2l1d0",
@@ -156,7 +174,7 @@ func TestValidateYouTubeURL(t *testing.T) {
 			"https://www.youtube.com/channel/UC38IQsAvIsxxjztdMZQtwHA",
 			"",
 			errors.New(
-				"invalid YouTube URL: \"https://www.youtube.com/channel/UC38IQsAvIsxxjztdMZQtwHA\": path must be \"/watch\" or \"/shorts/<VIDEO_ID>\"",
+				"invalid YouTube URL: \"https://www.youtube.com/channel/UC38IQsAvIsxxjztdMZQtwHA\": path must be \"/watch\", \"/shorts/<VIDEO_ID>\" or \"/live/<VIDEO_ID>\"",
 			),
 		},
 		{
@@ -164,7 +182,7 @@ func TestValidateYouTubeURL(t *testing.T) {
 			"https://www.youtube.com/shorts/",
 			"",
 			errors.New(
-				"invalid YouTube URL: \"https://www.youtube.com/shorts/\": path must be \"/watch\" or \"/shorts/<VIDEO_ID>\"",
+				"invalid YouTube URL: \"https://www.youtube.com/shorts/\": path must be \"/watch\", \"/shorts/<VIDEO_ID>\" or \"/live/<VIDEO_ID>\"",
 			),
 		},
 		{
@@ -172,7 +190,23 @@ func TestValidateYouTubeURL(t *testing.T) {
 			"https://www.youtube.com/shorts/dQw4w9WgXcQ/extra",
 			"",
 			errors.New(
-				"invalid YouTube URL: \"https://www.youtube.com/shorts/dQw4w9WgXcQ/extra\": path must be \"/watch\" or \"/shorts/<VIDEO_ID>\"",
+				"invalid YouTube URL: \"https://www.youtube.com/shorts/dQw4w9WgXcQ/extra\": path must be \"/watch\", \"/shorts/<VIDEO_ID>\" or \"/live/<VIDEO_ID>\"",
+			),
+		},
+		{
+			"invalid live path without video id",
+			"https://www.youtube.com/live/",
+			"",
+			errors.New(
+				"invalid YouTube URL: \"https://www.youtube.com/live/\": path must be \"/watch\", \"/shorts/<VIDEO_ID>\" or \"/live/<VIDEO_ID>\"",
+			),
+		},
+		{
+			"invalid live nested path",
+			"https://www.youtube.com/live/dQw4w9WgXcQ/extra",
+			"",
+			errors.New(
+				"invalid YouTube URL: \"https://www.youtube.com/live/dQw4w9WgXcQ/extra\": path must be \"/watch\", \"/shorts/<VIDEO_ID>\" or \"/live/<VIDEO_ID>\"",
 			),
 		},
 		{
@@ -223,6 +257,12 @@ func TestIsValidYouTubeVideoIDPath(t *testing.T) {
 			true,
 		},
 		{
+			"live path with video id",
+			"/live/",
+			"/live/dQw4w9WgXcQ",
+			true,
+		},
+		{
 			"empty youtu.be path",
 			"/",
 			"/",
@@ -235,6 +275,12 @@ func TestIsValidYouTubeVideoIDPath(t *testing.T) {
 			false,
 		},
 		{
+			"empty live path",
+			"/live/",
+			"/live/",
+			false,
+		},
+		{
 			"nested youtu.be path",
 			"/",
 			"/foo/bar",
@@ -244,6 +290,12 @@ func TestIsValidYouTubeVideoIDPath(t *testing.T) {
 			"nested shorts path",
 			"/shorts/",
 			"/shorts/dQw4w9WgXcQ/extra",
+			false,
+		},
+		{
+			"nested live path",
+			"/live/",
+			"/live/dQw4w9WgXcQ/extra",
 			false,
 		},
 		{
@@ -299,6 +351,16 @@ func TestSanitizeYouTubeURL(t *testing.T) {
 			"shorts url keeps unrelated query parameters",
 			"https://www.youtube.com/shorts/dQw4w9WgXcQ?feature=share&list=PL123456",
 			"https://www.youtube.com/shorts/dQw4w9WgXcQ?feature=share",
+		},
+		{
+			"live url removes playlist parameters",
+			"https://www.youtube.com/live/dQw4w9WgXcQ?list=PL123456&index=7",
+			"https://www.youtube.com/live/dQw4w9WgXcQ",
+		},
+		{
+			"live url keeps unrelated query parameters",
+			"https://www.youtube.com/live/dQw4w9WgXcQ?feature=share&list=PL123456",
+			"https://www.youtube.com/live/dQw4w9WgXcQ?feature=share",
 		},
 		{
 			"youtu.be url removes playlist parameters",
@@ -397,6 +459,28 @@ func TestParseDownloadRequest(t *testing.T) {
 				EndSecond:   EndSecond,
 				MediaKind:   MediaAudio,
 				SourceURL:   "https://youtu.be/8v_kBIIGViY",
+			},
+			nil,
+		},
+		{
+			"live video download request",
+			"https://www.youtube.com/live/8v_kBIIGViY",
+			DownloadRequest{
+				StartSecond: StartSecond,
+				EndSecond:   EndSecond,
+				MediaKind:   MediaVideo,
+				SourceURL:   "https://www.youtube.com/live/8v_kBIIGViY",
+			},
+			nil,
+		},
+		{
+			"live audio clip download request strips playlist parameters",
+			"https://www.youtube.com/live/8v_kBIIGViY?list=PL123456&index=4 2:45-2:53 audio",
+			DownloadRequest{
+				StartSecond: 165,
+				EndSecond:   173,
+				MediaKind:   MediaAudio,
+				SourceURL:   "https://www.youtube.com/live/8v_kBIIGViY",
 			},
 			nil,
 		},
