@@ -91,10 +91,10 @@ func validateYouTubeURL(rawURL string) (string, error) {
 				return "", fmt.Errorf(`%w: %q: "v" query parameter is missing`, ErrInvalidYouTubeURL, rawURL)
 			}
 			return sanitizeYouTubeURL(parsedURL), nil
-		} else if isValidYouTubeVideoIDPath("/shorts/", parsedURL.Path) {
+		} else if isValidYouTubeVideoIDPath("/shorts/", parsedURL.Path) || isValidYouTubeVideoIDPath("/live/", parsedURL.Path) {
 			return sanitizeYouTubeURL(parsedURL), nil
 		} else {
-			return "", fmt.Errorf(`%w: %q: path must be "/watch" or "/shorts/<VIDEO_ID>"`, ErrInvalidYouTubeURL, rawURL)
+			return "", fmt.Errorf(`%w: %q: path must be "/watch", "/shorts/<VIDEO_ID>" or "/live/<VIDEO_ID>"`, ErrInvalidYouTubeURL, rawURL)
 		}
 	default:
 		return "", fmt.Errorf(

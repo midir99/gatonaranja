@@ -10,7 +10,6 @@
 - Add random messages, so each time gato sends a message is a variant of the message, something funny
 - Change the filename of the downloaded video
 - Check with AI that descriptions, doc strings and readme match
-- Allow YouTube /live URLs (they are the same as /shorts)
 - When file to big to send over Telegram, suggest user to download by clips
 - Add uninstall script
 - DO A CLEANUP TO THIS FILE
