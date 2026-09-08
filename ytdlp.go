@@ -265,7 +265,7 @@ func (d YTDLPDownloader) BuildCommand() ([]string, error) {
 	format := videoFormat
 
 	if d.request.MediaKind == MediaAudio {
-		cmd = append(cmd, "--extract-audio", "--audio-format", "mp3")
+		cmd = append(cmd, "--extract-audio", "--audio-format", "m4a")
 		format = audioFormat
 	}
 	// Use a Telegram-friendly fallback format selection strategy. Video requests

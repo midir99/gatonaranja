@@ -614,7 +614,7 @@ func TestHandleDownloadRequestDownloadFailure(t *testing.T) {
 func TestHandleDownloadRequestAudioSuccessAndCleanup(t *testing.T) {
 	client := &handlerTestBotClient{}
 	downloader := &handlerTestMediaDownloader{
-		filename:  "clip.mp3",
+		filename:  "clip.m4a",
 		mediaKind: MediaAudio,
 	}
 
@@ -639,14 +639,14 @@ func TestHandleDownloadRequestAudioSuccessAndCleanup(t *testing.T) {
 	if got, want := len(client.sendAudioCalls), 1; got != want {
 		t.Fatalf("len(sendAudioCalls) = %d, want %d", got, want)
 	}
-	if got, want := client.sendAudioCalls[0].filePath, "clip.mp3"; got != want {
+	if got, want := client.sendAudioCalls[0].filePath, "clip.m4a"; got != want {
 		t.Fatalf("audio filepath = %q, want %q", got, want)
 	}
 	if got, want := len(client.sendTextCalls), 0; got != want {
 		t.Fatalf("len(sendTextCalls) = %d, want %d", got, want)
 	}
-	if removedFile != "clip.mp3" {
-		t.Fatalf("removed file = %q, want %q", removedFile, "clip.mp3")
+	if removedFile != "clip.m4a" {
+		t.Fatalf("removed file = %q, want %q", removedFile, "clip.m4a")
 	}
 	if !downloader.downloadHasDeadline {
 		t.Fatal("download context has no deadline, want deadline")

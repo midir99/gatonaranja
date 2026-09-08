@@ -314,6 +314,8 @@ https://www.youtube.com/watch?v=AqjB8DGt85U 1:00-1:05
 https://www.youtube.com/watch?v=AqjB8DGt85U audio
 ```
 
+Audio requests are sent back as Telegram-friendly M4A files when possible.
+
 ### Download an Audio Clip
 
 ```text
