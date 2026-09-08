@@ -259,22 +259,30 @@ func (d YTDLPDownloader) BuildCommand() ([]string, error) {
 		cmd = append(cmd, "--download-sections", downloadSections)
 	}
 
+	videoFormat := "best[height<=480][ext=mp4]/best[height<=480]/best[ext=mp4]/best"
+	audioFormat := "bestaudio[ext=m4a]/bestaudio/best"
+
+	format := videoFormat
+
 	if d.request.MediaKind == MediaAudio {
 		cmd = append(cmd, "--extract-audio", "--audio-format", "mp3")
+		format = audioFormat
 	}
-	// Use a Telegram-friendly fallback format selection strategy:
-	// --format "18/best[ext=mp4]/best" prefers YouTube format 18 first, then the
-	// best single-file MP4, and finally the best single-file format available.
-	// --format-sort "+size,+br,+res,+fps" biases selection toward smaller files by
-	// preferring lower filesize, bitrate, resolution, and frame rate.
+	// Use a Telegram-friendly fallback format selection strategy. Video requests
+	// prefer smaller pre-merged files at 480p or lower before falling back to
+	// other broadly available formats. Audio requests prefer audio-only formats
+	// before falling back to a combined format that can still be extracted.
+	// --format-sort "+size,+br,+res,+fps" further biases selection toward smaller
+	// files by preferring lower filesize, bitrate, resolution, and frame rate.
+
 	cmd = append(
 		cmd,
 		"--format",
-		"18/best[ext=mp4]/best",
+		format,
 		"--format-sort",
 		"+size,+br,+res,+fps",
 		"--output",
-		"%(title)s.%(ext)s",
+		"%(title)s-%(id)s.%(ext)s",
 		d.request.SourceURL,
 	)
 	return cmd, nil
