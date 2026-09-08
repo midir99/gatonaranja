@@ -1,6 +1,5 @@
 # gatonaranja 😸
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/midir99/gatonaranja)](https://goreportcard.com/report/github.com/midir99/gatonaranja)
 [![Coverage Status](https://coveralls.io/repos/github/midir99/gatonaranja/badge.svg?branch=main)](https://coveralls.io/github/midir99/gatonaranja?branch=main)
 [![Latest Release](https://img.shields.io/github/v/release/midir99/gatonaranja)](https://github.com/midir99/gatonaranja/releases/latest)
 
