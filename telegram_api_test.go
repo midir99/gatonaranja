@@ -421,7 +421,7 @@ func TestTelegramAPIClientSendVideo(t *testing.T) {
 }
 
 func TestTelegramAPIClientSendAudio(t *testing.T) {
-	audioPath := filepath.Join(t.TempDir(), "clip.mp3")
+	audioPath := filepath.Join(t.TempDir(), "clip.m4a")
 	if err := os.WriteFile(audioPath, []byte("audio-bytes"), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v, want nil", err)
 	}
@@ -444,7 +444,7 @@ func TestTelegramAPIClientSendAudio(t *testing.T) {
 		if got, want := fileFieldName, "audio"; got != want {
 			t.Fatalf("file field name = %q, want %q", got, want)
 		}
-		if got, want := fileName, "clip.mp3"; got != want {
+		if got, want := fileName, "clip.m4a"; got != want {
 			t.Fatalf("audio filename = %q, want %q", got, want)
 		}
 		if got, want := fileContents, "audio-bytes"; got != want {
@@ -478,11 +478,11 @@ func TestTelegramAPIClientSendAudioReturnsOpenFileError(t *testing.T) {
 		return nil, nil
 	})
 
-	_, err := client.SendAudio(context.Background(), 1, 2, "/path/that/does/not/exist.mp3")
+	_, err := client.SendAudio(context.Background(), 1, 2, "/path/that/does/not/exist.m4a")
 	if err == nil {
 		t.Fatal("SendAudio() error = nil, want non-nil")
 	}
-	if got := err.Error(); !strings.Contains(got, `open audio file "/path/that/does/not/exist.mp3"`) {
+	if got := err.Error(); !strings.Contains(got, `open audio file "/path/that/does/not/exist.m4a"`) {
 		t.Fatalf("SendAudio() error = %q, want it to mention the audio file open failure", got)
 	}
 }
