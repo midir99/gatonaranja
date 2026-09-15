@@ -60,7 +60,15 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("startup failed: GetMe failed: %w", err)
 	}
-	logger.Info("Telegram bot started", "bot_user_id", botUser.ID, "bot_user_name", botUser.UserName) // #nosec G706
+	logger.Info(
+		"gatonaranja Telegram bot started",
+		"version",
+		currentVersion(),
+		"bot_user_id",
+		botUser.ID,
+		"bot_user_name",
+		botUser.UserName,
+	) // #nosec G706
 
 	// Set up a queue and a worker pool for limiting the downloads
 	var (
