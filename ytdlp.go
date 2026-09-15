@@ -235,9 +235,9 @@ func (d YTDLPDownloader) MediaKind() MediaKind {
 }
 
 // BuildCommand builds the yt-dlp command for the wrapped download request and
-// explicit yt-dlp configuration file path, including optional section download
-// and audio extraction flags. It returns the arguments ready to be passed to
-// "[exec.Command]".
+// explicit yt-dlp configuration file path, including optional section download,
+// video/audio merge, and audio extraction flags. It returns the arguments ready
+// to be passed to "[exec.Command]".
 func (d YTDLPDownloader) BuildCommand() ([]string, error) {
 	cmd := []string{
 		"yt-dlp",
@@ -259,7 +259,9 @@ func (d YTDLPDownloader) BuildCommand() ([]string, error) {
 		cmd = append(cmd, "--download-sections", downloadSections)
 	}
 
-	videoFormat := "best[height<=480][ext=mp4]/best[height<=480]/best[ext=mp4]/best"
+	videoFormat := "bestvideo*[height<=480][ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/" +
+		"bestvideo*[height<=480][ext=mp4]+bestaudio[ext=m4a]/" +
+		"best[height<=480][ext=mp4]/best[height<=480]/best[ext=mp4]/best"
 	audioFormat := "bestaudio[ext=m4a]/bestaudio/best"
 
 	format := videoFormat
@@ -268,19 +270,24 @@ func (d YTDLPDownloader) BuildCommand() ([]string, error) {
 		cmd = append(cmd, "--extract-audio", "--audio-format", "m4a")
 		format = audioFormat
 	}
+	if d.request.MediaKind == MediaVideo {
+		cmd = append(cmd, "--merge-output-format", "mp4")
+	}
 	// Use a Telegram-friendly fallback format selection strategy. Video requests
-	// prefer smaller pre-merged files at 480p or lower before falling back to
-	// other broadly available formats. Audio requests prefer audio-only formats
-	// before falling back to a combined format that can still be extracted.
-	// --format-sort "+size,+br,+res,+fps" further biases selection toward smaller
-	// files by preferring lower filesize, bitrate, resolution, and frame rate.
+	// prefer H.264 MP4 video at 480p or lower with M4A audio, allowing yt-dlp
+	// to merge DASH video-only and audio-only streams when needed. Audio
+	// requests prefer audio-only M4A before falling back to other extractable
+	// formats.
+	// --format-sort "res:480,+size,+br,+fps" prefers formats close to 480p, then
+	// biases toward smaller files by preferring lower filesize, bitrate, and
+	// frame rate.
 
 	cmd = append(
 		cmd,
 		"--format",
 		format,
 		"--format-sort",
-		"+size,+br,+res,+fps",
+		"res:480,+size,+br,+fps",
 		"--output",
 		"%(title)s-%(id)s.%(ext)s",
 		d.request.SourceURL,

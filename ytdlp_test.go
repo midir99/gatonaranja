@@ -728,8 +728,11 @@ func ytdlpHelperOutputPath() string {
 
 func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 	const (
-		wantVideoFormat = "best[height<=480][ext=mp4]/best[height<=480]/best[ext=mp4]/best"
+		wantVideoFormat = "bestvideo*[height<=480][ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/" +
+			"bestvideo*[height<=480][ext=mp4]+bestaudio[ext=m4a]/" +
+			"best[height<=480][ext=mp4]/best[height<=480]/best[ext=mp4]/best"
 		wantAudioFormat = "bestaudio[ext=m4a]/bestaudio/best"
+		wantFormatSort  = "res:480,+size,+br,+fps"
 		wantOutput      = "%(title)s-%(id)s.%(ext)s"
 	)
 
@@ -753,8 +756,9 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--no-playlist",
 				"--print", "after_move:filepath",
 				"--ignore-config",
+				"--merge-output-format", "mp4",
 				"--format", wantVideoFormat,
-				"--format-sort", "+size,+br,+res,+fps",
+				"--format-sort", wantFormatSort,
 				"--output", wantOutput,
 				"https://www.youtube.com/watch?v=8v_kBIIGViY",
 			},
@@ -775,8 +779,9 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--print", "after_move:filepath",
 				"--ignore-config",
 				"--download-sections", "*00:00-00:05",
+				"--merge-output-format", "mp4",
 				"--format", wantVideoFormat,
-				"--format-sort", "+size,+br,+res,+fps",
+				"--format-sort", wantFormatSort,
 				"--output", wantOutput,
 				"https://www.youtube.com/watch?v=8v_kBIIGViY",
 			},
@@ -800,7 +805,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--extract-audio",
 				"--audio-format", "m4a",
 				"--format", wantAudioFormat,
-				"--format-sort", "+size,+br,+res,+fps",
+				"--format-sort", wantFormatSort,
 				"--output", wantOutput,
 				"https://www.youtube.com/watch?v=8v_kBIIGViY",
 			},
@@ -821,8 +826,9 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--print", "after_move:filepath",
 				"--ignore-config",
 				"--config-locations", "/home/arthur/.config/gatonaranja/yt-dlp.conf",
+				"--merge-output-format", "mp4",
 				"--format", wantVideoFormat,
-				"--format-sort", "+size,+br,+res,+fps",
+				"--format-sort", wantFormatSort,
 				"--output", wantOutput,
 				"https://www.youtube.com/watch?v=8v_kBIIGViY",
 			},
@@ -854,8 +860,9 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--print", "after_move:filepath",
 				"--ignore-config",
 				"--download-sections", "*00:10-00:20",
+				"--merge-output-format", "mp4",
 				"--format", wantVideoFormat,
-				"--format-sort", "+size,+br,+res,+fps",
+				"--format-sort", wantFormatSort,
 				"--output", wantOutput,
 				"https://www.youtube.com/watch?v=8v_kBIIGViY",
 			},
@@ -876,8 +883,9 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--print", "after_move:filepath",
 				"--ignore-config",
 				"--download-sections", "*01:00:00-01:01:05",
+				"--merge-output-format", "mp4",
 				"--format", wantVideoFormat,
-				"--format-sort", "+size,+br,+res,+fps",
+				"--format-sort", wantFormatSort,
 				"--output", wantOutput,
 				"https://www.youtube.com/watch?v=8v_kBIIGViY",
 			},
@@ -897,8 +905,9 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--no-playlist",
 				"--print", "after_move:filepath",
 				"--ignore-config",
+				"--merge-output-format", "mp4",
 				"--format", wantVideoFormat,
-				"--format-sort", "+size,+br,+res,+fps",
+				"--format-sort", wantFormatSort,
 				"--output", wantOutput,
 				"https://www.youtube.com/watch?v=8v_kBIIGViY",
 			},
@@ -921,7 +930,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--extract-audio",
 				"--audio-format", "m4a",
 				"--format", wantAudioFormat,
-				"--format-sort", "+size,+br,+res,+fps",
+				"--format-sort", wantFormatSort,
 				"--output", wantOutput,
 				"https://www.youtube.com/watch?v=8v_kBIIGViY",
 			},
@@ -945,7 +954,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--extract-audio",
 				"--audio-format", "m4a",
 				"--format", wantAudioFormat,
-				"--format-sort", "+size,+br,+res,+fps",
+				"--format-sort", wantFormatSort,
 				"--output", wantOutput,
 				"https://www.youtube.com/watch?v=8v_kBIIGViY",
 			},
@@ -1001,7 +1010,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--extract-audio",
 				"--audio-format", "m4a",
 				"--format", wantAudioFormat,
-				"--format-sort", "+size,+br,+res,+fps",
+				"--format-sort", wantFormatSort,
 				"--output", wantOutput,
 				"https://www.youtube.com/watch?v=8v_kBIIGViY",
 			},

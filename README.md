@@ -10,6 +10,8 @@ It is designed to be simple to run as a standalone binary and easy to deploy as 
 
 Try it on Telegram: [@gatonaranjabot](https://t.me/gatonaranjabot)
 
+See [CHANGELOG.md](CHANGELOG.md) for release history.
+
 ## Index
 
 - [Features](#features)
@@ -30,6 +32,7 @@ Try it on Telegram: [@gatonaranjabot](https://t.me/gatonaranjabot)
 - [Logging](#logging)
 - [Security Notes](#security-notes)
 - [Development](#development)
+- [Changelog](CHANGELOG.md)
 - [Acknowledgements](#acknowledgements)
 - [License](#license)
 
@@ -47,7 +50,10 @@ Try it on Telegram: [@gatonaranjabot](https://t.me/gatonaranjabot)
 ## Architecture
 
 ```text
-Telegram
+Telegram user
+   |
+   v
+Telegram Bot API
    |
    v
 RunTelegramBot
@@ -65,11 +71,20 @@ bounded download queue
    v
 download workers
    |
-   +--> yt-dlp
-   +--> ffmpeg
+   v
+yt-dlp
+   |
+   +--> download media streams
+   +--> use ffmpeg for clips, DASH merges, and audio extraction
    |
    v
-send audio/video back to Telegram
+local media file
+   |
+   v
+Telegram Bot API
+   |
+   v
+send audio/video back to user
 ```
 
 ## Requirements
@@ -300,6 +315,10 @@ Supported examples:
 ```text
 https://www.youtube.com/watch?v=AqjB8DGt85U
 ```
+
+Video requests prefer Telegram-friendly MP4 output around 480p. When YouTube
+only provides separate DASH video and audio streams, gatonaranja uses `ffmpeg`
+through `yt-dlp` to merge them into a single video file.
 
 ### Download a Video Clip
 
