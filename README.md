@@ -10,6 +10,8 @@ It is designed to be simple to run as a standalone binary and easy to deploy as 
 
 Try it on Telegram: [@gatonaranjabot](https://t.me/gatonaranjabot)
 
+See [CHANGELOG.md](CHANGELOG.md) for release history.
+
 ## Index
 
 - [Features](#features)
@@ -30,6 +32,7 @@ Try it on Telegram: [@gatonaranjabot](https://t.me/gatonaranjabot)
 - [Logging](#logging)
 - [Security Notes](#security-notes)
 - [Development](#development)
+- [Changelog](CHANGELOG.md)
 - [Acknowledgements](#acknowledgements)
 - [License](#license)
 
