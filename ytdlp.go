@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"os/exec"
 	"strings"
 )
 
@@ -224,9 +223,6 @@ func SecondsToDownloadSections(startSecond, endSecond int) (string, error) {
 
 	return "*" + start + "-" + end, nil
 }
-
-// commandContext is a test seam for creating yt-dlp commands.
-var commandContext = exec.CommandContext
 
 // MediaKind reports the kind of media produced by the wrapped download
 // request.
