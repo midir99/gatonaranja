@@ -19,6 +19,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Store each download in its own temporary directory and keep the final output
   filename as title plus extension.
 - Log `duration_seconds` when a worker finishes processing a download.
+- Allow a second `Ctrl+C` to force shutdown while gatonaranja is waiting for
+  active downloads to finish.
 
 ## [1.3.0] - 2026-09-15
 
