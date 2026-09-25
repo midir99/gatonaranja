@@ -14,3 +14,4 @@
 - Add uninstall script
 - DO A CLEANUP TO THIS FILE
 - Cover more test cases for cmd.go
+- new download modes: music gathers the info of the video like the artist, clips sends the video back in 10 min clips (this is good for big videos)

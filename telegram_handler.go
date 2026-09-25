@@ -201,6 +201,7 @@ func downloadWorker(
 	wg *sync.WaitGroup,
 ) {
 	for job := range jobs {
+		startedAt := time.Now()
 		logger.Info(
 			"Worker processing download",
 			"worker_id", workerID,
@@ -217,6 +218,7 @@ func downloadWorker(
 			"user_id", job.Message.From.ID,
 			"user_name", job.Message.From.UserName,
 			"message_text", job.Message.Text,
+			"duration_seconds", time.Since(startedAt).Seconds(),
 		)
 		wg.Done()
 	}
