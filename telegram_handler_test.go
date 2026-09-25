@@ -104,20 +104,25 @@ type handlerTestMediaDownloader struct {
 	filename            string
 	err                 error
 	mediaKind           MediaKind
+	cleanupErr          error
+	cleanupCalled       bool
 	downloadCalled      bool
 	downloadCtx         context.Context
 	downloadHasDeadline bool
 	downloadDeadline    time.Time
 }
 
-func (d *handlerTestMediaDownloader) Download(ctx context.Context) (string, error) {
+func (d *handlerTestMediaDownloader) Download(ctx context.Context) (string, func() error, error) {
 	d.downloadCalled = true
 	d.downloadCtx = ctx
 	d.downloadDeadline, d.downloadHasDeadline = ctx.Deadline()
 	if d.err != nil {
-		return "", d.err
+		return "", nil, d.err
 	}
-	return d.filename, nil
+	return d.filename, func() error {
+		d.cleanupCalled = true
+		return d.cleanupErr
+	}, nil
 }
 
 func (d *handlerTestMediaDownloader) MediaKind() MediaKind {
@@ -159,8 +164,12 @@ func waitForWaitGroup(t *testing.T, wg *sync.WaitGroup) {
 	}
 }
 
-func telegramHandlerHelperOutputPath() string {
-	return filepath.Join(os.TempDir(), "gatonaranja-telegram-handler-helper-file.mp4")
+func telegramHandlerHelperOutputPath(args []string) (string, error) {
+	outputTemplate, ok := commandArgValue(args, "--output")
+	if !ok {
+		return "", errors.New("missing --output")
+	}
+	return filepath.Join(filepath.Dir(outputTemplate), "gatonaranja-telegram-handler-helper-file.mp4"), nil
 }
 
 type secondDoneCanceledContext struct {
@@ -618,15 +627,6 @@ func TestHandleDownloadRequestAudioSuccessAndCleanup(t *testing.T) {
 		mediaKind: MediaAudio,
 	}
 
-	productionRemoveFile := removeFile
-	defer func() { removeFile = productionRemoveFile }()
-
-	var removedFile string
-	removeFile = func(name string) error {
-		removedFile = name
-		return nil
-	}
-
 	handleDownloadRequest(
 		context.Background(),
 		client,
@@ -645,8 +645,8 @@ func TestHandleDownloadRequestAudioSuccessAndCleanup(t *testing.T) {
 	if got, want := len(client.sendTextCalls), 0; got != want {
 		t.Fatalf("len(sendTextCalls) = %d, want %d", got, want)
 	}
-	if removedFile != "clip.m4a" {
-		t.Fatalf("removed file = %q, want %q", removedFile, "clip.m4a")
+	if !downloader.cleanupCalled {
+		t.Fatal("cleanup was not called")
 	}
 	if !downloader.downloadHasDeadline {
 		t.Fatal("download context has no deadline, want deadline")
@@ -686,10 +686,6 @@ func TestHandleDownloadRequestSendFailureRepliesToUser(t *testing.T) {
 				mediaKind: MediaVideo,
 			}
 
-			productionRemoveFile := removeFile
-			defer func() { removeFile = productionRemoveFile }()
-			removeFile = func(string) error { return nil }
-
 			handleDownloadRequest(
 				context.Background(),
 				client,
@@ -708,6 +704,9 @@ func TestHandleDownloadRequestSendFailureRepliesToUser(t *testing.T) {
 			if got := client.sendTextCalls[0].text; got != tc.wantReply {
 				t.Fatalf("reply text = %q, want %q", got, tc.wantReply)
 			}
+			if !downloader.cleanupCalled {
+				t.Fatal("cleanup was not called")
+			}
 		})
 	}
 }
@@ -718,10 +717,6 @@ func TestHandleDownloadRequestUnsupportedMediaKind(t *testing.T) {
 		filename:  "clip.bin",
 		mediaKind: MediaKind(99),
 	}
-
-	productionRemoveFile := removeFile
-	defer func() { removeFile = productionRemoveFile }()
-	removeFile = func(string) error { return nil }
 
 	handleDownloadRequest(
 		context.Background(),
@@ -744,19 +739,19 @@ func TestHandleDownloadRequestUnsupportedMediaKind(t *testing.T) {
 	if got, want := client.sendTextCalls[0].text, "I downloaded it, but I couldn't send it to you 🙀"; got != want {
 		t.Fatalf("reply text = %q, want %q", got, want)
 	}
+	if !downloader.cleanupCalled {
+		t.Fatal("cleanup was not called")
+	}
 }
 
 func TestHandleDownloadRequestLogsCleanupFailure(t *testing.T) {
 	var buf bytes.Buffer
 	client := &handlerTestBotClient{}
 	downloader := &handlerTestMediaDownloader{
-		filename:  "clip.mp4",
-		mediaKind: MediaVideo,
+		filename:   "clip.mp4",
+		mediaKind:  MediaVideo,
+		cleanupErr: errors.New("cleanup failed"),
 	}
-
-	productionRemoveFile := removeFile
-	defer func() { removeFile = productionRemoveFile }()
-	removeFile = func(string) error { return errors.New("remove failed") }
 
 	handleDownloadRequest(
 		context.Background(),
@@ -767,8 +762,11 @@ func TestHandleDownloadRequestLogsCleanupFailure(t *testing.T) {
 		2*time.Minute,
 	)
 
-	if !strings.Contains(buf.String(), "Failed to remove downloaded file") {
+	if !strings.Contains(buf.String(), "Failed to clean up downloaded files") {
 		t.Fatalf("log output = %q, want cleanup warning", buf.String())
+	}
+	if !downloader.cleanupCalled {
+		t.Fatal("cleanup was not called")
 	}
 }
 
@@ -844,11 +842,16 @@ func TestTelegramHandlerHelperProcess(_ *testing.T) {
 
 	switch mode {
 	case "success":
-		if err := os.WriteFile(telegramHandlerHelperOutputPath(), []byte("video"), 0o600); err != nil {
+		outputPath, err := telegramHandlerHelperOutputPath(helperArgs[1:])
+		if err != nil {
 			fmt.Fprint(os.Stderr, err.Error())
 			os.Exit(2)
 		}
-		fmt.Fprint(os.Stdout, telegramHandlerHelperOutputPath())
+		if err := os.WriteFile(outputPath, []byte("video"), 0o600); err != nil {
+			fmt.Fprint(os.Stderr, err.Error())
+			os.Exit(2)
+		}
+		fmt.Fprint(os.Stdout, outputPath)
 		os.Exit(0)
 	default:
 		fmt.Fprint(os.Stderr, "unknown helper mode")
@@ -887,10 +890,8 @@ func TestDownloadWorkerProcessesQueuedJob(t *testing.T) {
 	close(jobs)
 
 	productionCommandContext := commandContext
-	productionRemoveFile := removeFile
 	defer func() {
 		commandContext = productionCommandContext
-		removeFile = productionRemoveFile
 	}()
 
 	var gotArgs []string
@@ -898,7 +899,6 @@ func TestDownloadWorkerProcessesQueuedJob(t *testing.T) {
 		gotArgs = append([]string(nil), args...)
 		return telegramHandlerHelperCommand(ctx, "success", args...)
 	}
-	removeFile = func(string) error { return nil }
 
 	downloadWorker(
 		context.Background(),
@@ -914,8 +914,8 @@ func TestDownloadWorkerProcessesQueuedJob(t *testing.T) {
 	if got, want := len(client.sendVideoCalls), 1; got != want {
 		t.Fatalf("len(sendVideoCalls) = %d, want %d", got, want)
 	}
-	if got, want := client.sendVideoCalls[0].filePath, telegramHandlerHelperOutputPath(); got != want {
-		t.Fatalf("video filepath = %q, want %q", got, want)
+	if got, want := filepath.Base(client.sendVideoCalls[0].filePath), "gatonaranja-telegram-handler-helper-file.mp4"; got != want {
+		t.Fatalf("video filename = %q, want %q", got, want)
 	}
 	if !strings.Contains(strings.Join(gotArgs, "\x00"), "--config-locations") {
 		t.Fatalf("worker yt-dlp args = %v, want --config-locations", gotArgs)

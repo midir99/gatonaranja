@@ -46,6 +46,11 @@ func run(logger *slog.Logger) error {
 	// Set up graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	go func() {
+		<-ctx.Done()
+		// Restore default signal handling so a second Ctrl+C forces shutdown.
+		stop()
+	}()
 
 	// Bootstrap the bot
 	bot, err := NewTelegramAPIClient(config.TelegramBotToken, nil)
@@ -115,7 +120,7 @@ func run(logger *slog.Logger) error {
 	}
 	close(downloadJobsQueue)
 
-	logger.Info("Waiting for active downloads to finish")
+	logger.Info("Waiting for active downloads to finish; press Ctrl+C again to force shutdown")
 	downloadsWG.Wait()
 	logger.Info("Shutdown complete")
 	return nil

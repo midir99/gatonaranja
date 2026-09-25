@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-09-25
+
+### Fixed
+
+- Terminate the full `yt-dlp` process group on timeout so child processes such
+  as `ffmpeg` do not keep running after a canceled download.
+- Clean up temporary download directories, including partial files and merge
+  artifacts, after failed or completed downloads.
+
+### Changed
+
+- Store each download in its own temporary directory and keep the final output
+  filename as title plus extension.
+- Log `duration_seconds` when a worker finishes processing a download.
+- Allow a second `Ctrl+C` to force shutdown while gatonaranja is waiting for
+  active downloads to finish.
+
 ## [1.3.0] - 2026-09-15
 
 ### Added
@@ -62,6 +79,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Graceful shutdown.
 - Unit tests, coverage reporting, and release automation.
 
+[1.3.1]: https://github.com/midir99/gatonaranja/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/midir99/gatonaranja/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/midir99/gatonaranja/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/midir99/gatonaranja/compare/v1.0.0...v1.1.0
