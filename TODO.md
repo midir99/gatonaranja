@@ -3,15 +3,13 @@
 - Try to get as much metadata from the video as possible, at least artist name, so when someone downloads audio they can have the artist name
 - Maybe and just maaaaybe support other platforms like instagram :)
 - Make jobs that update yt-dlp and ffmpeg constantly
-- Fix indentation for install-systemd-user.sh and uninstall.sh script
 - Add Dockerfile for people that wants to use Docker
-- Enhance README with link to actual Telegram bot and some badges
 - Add internazionalization, mainly spanish and english
 - Add random messages, so each time gato sends a message is a variant of the message, something funny
 - Change the filename of the downloaded video
 - Check with AI that descriptions, doc strings and readme match
 - When file to big to send over Telegram, suggest user to download by clips
-- Add uninstall script
 - DO A CLEANUP TO THIS FILE
 - Cover more test cases for cmd.go
 - new download modes: music gathers the info of the video like the artist, clips sends the video back in 10 min clips (this is good for big videos)
+- tune .golangci.yml so it is not very strict

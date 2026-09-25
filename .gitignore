@@ -26,3 +26,9 @@ go.work
 
 # Test coverage
 coverage.html
+
+# Secrets
+.env
+
+# AI tools
+.codex
