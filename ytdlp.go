@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -27,10 +28,11 @@ const (
 	MediaVideo
 )
 
-// MediaDownloader describes something that can download media using a context
-// and report the kind of media it produces.
+// MediaDownloader describes something that can download media using a context,
+// return the downloaded file path with a cleanup function, and report the kind
+// of media it produces.
 type MediaDownloader interface {
-	Download(ctx context.Context) (string, error)
+	Download(ctx context.Context) (string, func() error, error)
 	MediaKind() MediaKind
 }
 
@@ -230,11 +232,11 @@ func (d YTDLPDownloader) MediaKind() MediaKind {
 	return d.request.MediaKind
 }
 
-// BuildCommand builds the yt-dlp command for the wrapped download request and
-// explicit yt-dlp configuration file path, including optional section download,
-// video/audio merge, and audio extraction flags. It returns the arguments ready
-// to be passed to "[exec.Command]".
-func (d YTDLPDownloader) BuildCommand() ([]string, error) {
+// BuildCommand builds the yt-dlp command for the wrapped download request,
+// explicit yt-dlp configuration file path, and output directory, including
+// optional section download, video/audio merge, and audio extraction flags. It
+// returns the arguments ready to be passed to "[exec.Command]".
+func (d YTDLPDownloader) BuildCommand(outputDir string) ([]string, error) {
 	cmd := []string{
 		"yt-dlp",
 		"--no-simulate",
@@ -285,7 +287,7 @@ func (d YTDLPDownloader) BuildCommand() ([]string, error) {
 		"--format-sort",
 		"res:480,+size,+br,+fps",
 		"--output",
-		"%(title)s-%(id)s.%(ext)s",
+		filepath.Join(outputDir, "%(title)s.%(ext)s"),
 		d.request.SourceURL,
 	)
 	return cmd, nil
@@ -293,11 +295,24 @@ func (d YTDLPDownloader) BuildCommand() ([]string, error) {
 
 // Download executes yt-dlp for the wrapped request using the provided context
 // and explicit yt-dlp configuration file path, and returns the final output
-// filepath reported by yt-dlp.
-func (d YTDLPDownloader) Download(ctx context.Context) (string, error) {
-	cmdArgs, err := d.BuildCommand()
+// filepath reported by yt-dlp plus a cleanup function that removes temporary
+// files after the caller is done with the filepath.
+func (d YTDLPDownloader) Download(ctx context.Context) (string, func() error, error) {
+	tempDir, err := os.MkdirTemp("", "gatonaranja-*")
 	if err != nil {
-		return "", err
+		return "", nil, fmt.Errorf("failed to create temporary download directory: %w", err)
+	}
+	cleanup := func() error {
+		return os.RemoveAll(tempDir)
+	}
+	cleanupOnError := func() {
+		_ = cleanup()
+	}
+
+	cmdArgs, err := d.BuildCommand(tempDir)
+	if err != nil {
+		cleanupOnError()
+		return "", nil, err
 	}
 
 	cmd := commandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
@@ -309,21 +324,48 @@ func (d YTDLPDownloader) Download(ctx context.Context) (string, error) {
 
 	err = cmd.Run()
 	if err != nil {
-		return "", fmt.Errorf("yt-dlp failed: %w: %s", err, stderr.String())
+		cleanupOnError()
+		return "", nil, fmt.Errorf("yt-dlp failed: %w: %s", err, stderr.String())
 	}
 
 	outputPath := strings.TrimSpace(stdout.String())
 	if outputPath == "" {
-		return "", errors.New("yt-dlp succeeded but did not print the output filepath")
+		cleanupOnError()
+		return "", nil, errors.New("yt-dlp succeeded but did not print the output filepath")
+	}
+
+	if !pathIsInsideDir(outputPath, tempDir) {
+		cleanupOnError()
+		return "", nil, fmt.Errorf("yt-dlp printed output filepath %q outside temporary directory %q", outputPath, tempDir)
 	}
 
 	fileInfo, err := os.Stat(outputPath)
 	if err != nil {
-		return "", fmt.Errorf("yt-dlp printed output filepath %q but it is not accessible: %w", outputPath, err)
+		cleanupOnError()
+		return "", nil, fmt.Errorf("yt-dlp printed output filepath %q but it is not accessible: %w", outputPath, err)
 	}
 	if !fileInfo.Mode().IsRegular() {
-		return "", fmt.Errorf("yt-dlp printed output filepath %q but it is not a regular file", outputPath)
+		cleanupOnError()
+		return "", nil, fmt.Errorf("yt-dlp printed output filepath %q but it is not a regular file", outputPath)
 	}
 
-	return outputPath, nil
+	return outputPath, cleanup, nil
+}
+
+// pathIsInsideDir reports whether path is located inside dir after resolving
+// both paths to absolute lexical paths.
+func pathIsInsideDir(path, dir string) bool {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return false
+	}
+	relPath, err := filepath.Rel(absDir, absPath)
+	if err != nil {
+		return false
+	}
+	return relPath != "." && !strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) && relPath != ".."
 }

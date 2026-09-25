@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"sync"
 	"time"
 )
@@ -223,11 +222,8 @@ func downloadWorker(
 	}
 }
 
-// removeFile is a test seam for deleting downloaded files after processing.
-var removeFile = os.Remove
-
 // handleDownloadRequest performs the download, sends the resulting media or a
-// fallback reply, and removes the downloaded file when possible.
+// fallback reply, and runs the downloader cleanup when possible.
 func handleDownloadRequest(
 	ctx context.Context,
 	client TelegramBotClient,
@@ -238,7 +234,7 @@ func handleDownloadRequest(
 ) {
 	downloadCtx, cancelDownload := context.WithTimeout(ctx, downloadTimeout)
 	defer cancelDownload()
-	mediaFilename, err := mediaDownloader.Download(downloadCtx)
+	mediaFilename, cleanup, err := mediaDownloader.Download(downloadCtx)
 
 	sendCtx, cancelSend := context.WithTimeout(ctx, telegramSendGrace)
 	defer cancelSend()
@@ -290,13 +286,15 @@ func handleDownloadRequest(
 			sendReply(sendCtx, client, logger, message, "I downloaded it, but I couldn't send it to you 🙀")
 		}
 	}
-	err = removeFile(mediaFilename)
-	if err != nil {
+	if cleanup == nil {
+		return
+	}
+	if err := cleanup(); err != nil {
 		logger.Warn(
-			"Failed to remove downloaded file",
+			"Failed to clean up downloaded files",
 			"user_id", message.From.ID,
 			"user_name", message.From.UserName,
-			"file_name", mediaFilename,
+			"file_path", mediaFilename,
 			"error", err,
 		)
 	}

@@ -722,8 +722,21 @@ func compareStringArray(t *testing.T, got, want []string) {
 	}
 }
 
-func ytdlpHelperOutputPath() string {
-	return filepath.Join(os.TempDir(), "gatonaranja-ytdlp-helper-file.mp4")
+func commandArgValue(args []string, flag string) (string, bool) {
+	for i, arg := range args {
+		if arg == flag && i+1 < len(args) {
+			return args[i+1], true
+		}
+	}
+	return "", false
+}
+
+func ytdlpHelperOutputPath(args []string) (string, error) {
+	outputTemplate, ok := commandArgValue(args, "--output")
+	if !ok {
+		return "", errors.New("missing --output")
+	}
+	return filepath.Join(filepath.Dir(outputTemplate), "gatonaranja-ytdlp-helper-file.mp4"), nil
 }
 
 func TestYTDLPDownloaderBuildCommand(t *testing.T) {
@@ -733,8 +746,9 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 			"best[height<=480][ext=mp4]/best[height<=480]/best[ext=mp4]/best"
 		wantAudioFormat = "bestaudio[ext=m4a]/bestaudio/best"
 		wantFormatSort  = "res:480,+size,+br,+fps"
-		wantOutput      = "%(title)s-%(id)s.%(ext)s"
 	)
+	outputDir := filepath.Join(os.TempDir(), "gatonaranja-test-output")
+	wantOutput := filepath.Join(outputDir, "%(title)s.%(ext)s")
 
 	testCases := []struct {
 		testName    string
@@ -1019,7 +1033,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
-			got, err := tc.downloader.BuildCommand()
+			got, err := tc.downloader.BuildCommand(outputDir)
 			if tc.err != nil && err == nil {
 				t.Fatalf("got nil, want %q", tc.err.Error())
 			}
@@ -1115,40 +1129,78 @@ func TestHelperProcess(_ *testing.T) {
 
 	switch mode {
 	case "success":
-		if err := os.WriteFile(ytdlpHelperOutputPath(), []byte("video"), 0o600); err != nil {
+		outputPath, err := ytdlpHelperOutputPath(helperArgs[1:])
+		if err != nil {
 			fmt.Fprint(os.Stderr, err.Error())
 			os.Exit(2)
 		}
-		fmt.Fprint(os.Stdout, ytdlpHelperOutputPath())
+		if err := os.WriteFile(outputPath, []byte("video"), 0o600); err != nil {
+			fmt.Fprint(os.Stderr, err.Error())
+			os.Exit(2)
+		}
+		fmt.Fprint(os.Stdout, outputPath)
 		os.Exit(0)
 	case "empty-success":
 		os.Exit(0)
 	case "success-with-spaces":
-		if err := os.WriteFile(ytdlpHelperOutputPath(), []byte("video"), 0o600); err != nil {
+		outputPath, err := ytdlpHelperOutputPath(helperArgs[1:])
+		if err != nil {
 			fmt.Fprint(os.Stderr, err.Error())
 			os.Exit(2)
 		}
-		fmt.Fprintf(os.Stdout, "\n\n \t \r %s   \t\t\n\t", ytdlpHelperOutputPath())
+		if err := os.WriteFile(outputPath, []byte("video"), 0o600); err != nil {
+			fmt.Fprint(os.Stderr, err.Error())
+			os.Exit(2)
+		}
+		fmt.Fprintf(os.Stdout, "\n\n \t \r %s   \t\t\n\t", outputPath)
 		os.Exit(0)
 	case "stderr-and-fail":
+		outputPath, err := ytdlpHelperOutputPath(helperArgs[1:])
+		if err != nil {
+			fmt.Fprint(os.Stderr, err.Error())
+			os.Exit(2)
+		}
+		if err := os.WriteFile(outputPath+".part", []byte("partial video"), 0o600); err != nil {
+			fmt.Fprint(os.Stderr, err.Error())
+			os.Exit(2)
+		}
 		fmt.Fprint(os.Stderr, "error")
 		os.Exit(1)
 	case "fail-without-stderr":
 		os.Exit(1)
 	case "multiline-stdout":
-		if err := os.WriteFile(ytdlpHelperOutputPath(), []byte("video"), 0o600); err != nil {
+		outputPath, err := ytdlpHelperOutputPath(helperArgs[1:])
+		if err != nil {
 			fmt.Fprint(os.Stderr, err.Error())
 			os.Exit(2)
 		}
-		fmt.Fprintf(os.Stdout, "%s\nextra\n", ytdlpHelperOutputPath())
+		if err := os.WriteFile(outputPath, []byte("video"), 0o600); err != nil {
+			fmt.Fprint(os.Stderr, err.Error())
+			os.Exit(2)
+		}
+		fmt.Fprintf(os.Stdout, "%s\nextra\n", outputPath)
 		os.Exit(0)
 	case "directory-output":
-		outputDirPath := filepath.Join(os.TempDir(), "gatonaranja-ytdlp-helper-dir")
-		if err := os.MkdirAll(outputDirPath, 0o755); err != nil {
+		outputTemplate, ok := commandArgValue(helperArgs[1:], "--output")
+		if !ok {
+			fmt.Fprint(os.Stderr, "missing --output")
+			os.Exit(2)
+		}
+		outputDirPath := filepath.Dir(outputTemplate)
+		directoryOutputPath := filepath.Join(outputDirPath, "partial")
+		if err := os.MkdirAll(directoryOutputPath, 0o755); err != nil {
 			fmt.Fprint(os.Stderr, err.Error())
 			os.Exit(2)
 		}
-		fmt.Fprint(os.Stdout, outputDirPath)
+		fmt.Fprint(os.Stdout, directoryOutputPath)
+		os.Exit(0)
+	case "outside-output":
+		outputPath := filepath.Join(os.TempDir(), "gatonaranja-ytdlp-outside-output.mp4")
+		if err := os.WriteFile(outputPath, []byte("video"), 0o600); err != nil {
+			fmt.Fprint(os.Stderr, err.Error())
+			os.Exit(2)
+		}
+		fmt.Fprint(os.Stdout, outputPath)
 		os.Exit(0)
 	default:
 		fmt.Fprint(os.Stderr, "unknown helper mode")
@@ -1174,7 +1226,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 		testName        string
 		downloader      YTDLPDownloader
 		funcCommand     func(ctx context.Context, name string, args ...string) *exec.Cmd
-		wantFilepath    string
+		wantFilename    string
 		wantErr         bool
 		wantErrContains []string
 	}{
@@ -1189,7 +1241,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 			func(ctx context.Context, _ string, args ...string) *exec.Cmd {
 				return helperCommand(ctx, "success", args...)
 			},
-			ytdlpHelperOutputPath(),
+			"gatonaranja-ytdlp-helper-file.mp4",
 			false,
 			[]string{},
 		},
@@ -1234,7 +1286,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 			func(ctx context.Context, _ string, args ...string) *exec.Cmd {
 				return helperCommand(ctx, "success-with-spaces", args...)
 			},
-			ytdlpHelperOutputPath(),
+			"gatonaranja-ytdlp-helper-file.mp4",
 			false,
 			[]string{},
 		},
@@ -1298,15 +1350,38 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 			true,
 			[]string{"yt-dlp printed output filepath", "not a regular file"},
 		},
+		{
+			"printed output path outside temporary directory",
+			NewYTDLPDownloader(DownloadRequest{
+				StartSecond: StartSecond,
+				EndSecond:   EndSecond,
+				SourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
+				MediaKind:   MediaVideo,
+			}, ""),
+			func(ctx context.Context, _ string, args ...string) *exec.Cmd {
+				return helperCommand(ctx, "outside-output", args...)
+			},
+			"",
+			true,
+			[]string{"yt-dlp printed output filepath", "outside temporary directory"},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
 			productionCommandContext := commandContext
-			commandContext = tc.funcCommand
+			var commandOutputDir string
+			commandContext = func(ctx context.Context, name string, args ...string) *exec.Cmd {
+				outputTemplate, ok := commandArgValue(args, "--output")
+				if ok {
+					commandOutputDir = filepath.Dir(outputTemplate)
+				}
+				return tc.funcCommand(ctx, name, args...)
+			}
 			defer func() {
 				commandContext = productionCommandContext
+				_ = os.Remove(filepath.Join(os.TempDir(), "gatonaranja-ytdlp-outside-output.mp4"))
 			}()
-			got, err := tc.downloader.Download(context.Background())
+			got, cleanup, err := tc.downloader.Download(context.Background())
 			if !tc.wantErr && err != nil {
 				t.Fatalf("got error %q, want nil", err.Error())
 			}
@@ -1320,9 +1395,33 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 						}
 					}
 				}
+				if cleanup != nil {
+					t.Fatal("cleanup = non-nil, want nil on error")
+				}
+				if commandOutputDir != "" {
+					if _, statErr := os.Stat(commandOutputDir); !errors.Is(statErr, os.ErrNotExist) {
+						t.Fatalf("temporary directory still exists after error: %v", statErr)
+					}
+				}
 			}
-			if got != tc.wantFilepath {
-				t.Fatalf("got %q, want %q", got, tc.wantFilepath)
+			if tc.wantFilename != "" {
+				if filepath.Base(got) != tc.wantFilename {
+					t.Fatalf("got filename %q, want %q", filepath.Base(got), tc.wantFilename)
+				}
+				if cleanup == nil {
+					t.Fatal("cleanup = nil, want non-nil on success")
+				}
+				if _, statErr := os.Stat(commandOutputDir); statErr != nil {
+					t.Fatalf("temporary directory before cleanup stat error = %v, want nil", statErr)
+				}
+				if cleanupErr := cleanup(); cleanupErr != nil {
+					t.Fatalf("cleanup() error = %v, want nil", cleanupErr)
+				}
+				if _, statErr := os.Stat(commandOutputDir); !errors.Is(statErr, os.ErrNotExist) {
+					t.Fatalf("temporary directory still exists after cleanup: %v", statErr)
+				}
+			} else if got != "" {
+				t.Fatalf("got %q, want empty filepath", got)
 			}
 		})
 	}
@@ -1337,7 +1436,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		got, err := NewYTDLPDownloader(DownloadRequest{
+		got, cleanup, err := NewYTDLPDownloader(DownloadRequest{
 			StartSecond: StartSecond,
 			EndSecond:   EndSecond,
 			SourceURL:   "https://www.youtube.com/watch?v=IFbXnS1odNs",
@@ -1349,6 +1448,9 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 		}
 		if got != "" {
 			t.Fatalf("got %q, want %q", got, "")
+		}
+		if cleanup != nil {
+			t.Fatal("cleanup = non-nil, want nil")
 		}
 		if !strings.Contains(err.Error(), "yt-dlp failed") {
 			t.Fatalf("got error %q, want it to contain %q", err.Error(), "yt-dlp failed")

@@ -56,6 +56,7 @@ func terminateProcessGroup(cmd *exec.Cmd, killGrace time.Duration) error {
 }
 
 func signalProcessGroup(pgid int, signal syscall.Signal) error {
+	// A negative PID targets every process in the process group.
 	err := syscall.Kill(-pgid, signal)
 	if err == nil {
 		return nil
@@ -69,6 +70,7 @@ func signalProcessGroup(pgid int, signal syscall.Signal) error {
 func waitForProcessGroupExit(pgid int, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for {
+		// Signal 0 does not kill anything; it only checks whether the group exists.
 		err := syscall.Kill(-pgid, 0)
 		if errors.Is(err, syscall.ESRCH) {
 			return true
