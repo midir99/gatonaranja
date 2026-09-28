@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-09-28
+
+### Changed
+
+- Embed available source metadata in downloaded audio and video files, using the
+  uploader as the audio artist fallback when no artist field is available.
+
 ## [1.3.1] - 2026-09-25
 
 ### Fixed
@@ -79,6 +86,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Graceful shutdown.
 - Unit tests, coverage reporting, and release automation.
 
+[1.4.0]: https://github.com/midir99/gatonaranja/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/midir99/gatonaranja/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/midir99/gatonaranja/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/midir99/gatonaranja/compare/v1.1.0...v1.2.0

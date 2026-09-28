@@ -234,8 +234,9 @@ func (d YTDLPDownloader) MediaKind() MediaKind {
 
 // BuildCommand builds the yt-dlp command for the wrapped download request,
 // explicit yt-dlp configuration file path, and output directory, including
-// optional section download, video/audio merge, and audio extraction flags. It
-// returns the arguments ready to be passed to "[exec.Command]".
+// optional section download, embedded metadata, video/audio merge, and audio
+// extraction flags. It returns the arguments ready to be passed to
+// "[exec.Command]".
 func (d YTDLPDownloader) BuildCommand(outputDir string) ([]string, error) {
 	cmd := []string{
 		"yt-dlp",
@@ -264,8 +265,14 @@ func (d YTDLPDownloader) BuildCommand(outputDir string) ([]string, error) {
 
 	format := videoFormat
 
+	cmd = append(cmd, "--embed-metadata")
 	if d.request.MediaKind == MediaAudio {
-		cmd = append(cmd, "--extract-audio", "--audio-format", "m4a")
+		cmd = append(
+			cmd,
+			"--extract-audio",
+			"--audio-format", "m4a",
+			"--parse-metadata", "%(artist,uploader|)s:%(meta_artist)s",
+		)
 		format = audioFormat
 	}
 	if d.request.MediaKind == MediaVideo {
