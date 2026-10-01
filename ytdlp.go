@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -28,11 +29,25 @@ const (
 	MediaVideo
 )
 
+// MediaMetadata contains source metadata that can be reused when sending the
+// downloaded media to clients that support explicit metadata fields.
+type MediaMetadata struct {
+	Title  string
+	Artist string
+}
+
+// DownloadedMedia describes a successfully downloaded media file and any
+// source metadata collected during the download.
+type DownloadedMedia struct {
+	FilePath string
+	Metadata MediaMetadata
+}
+
 // MediaDownloader describes something that can download media using a context,
-// return the downloaded file path with a cleanup function, and report the kind
-// of media it produces.
+// return the downloaded media with a cleanup function, and report the kind of
+// media it produces.
 type MediaDownloader interface {
-	Download(ctx context.Context) (string, func() error, error)
+	Download(ctx context.Context) (DownloadedMedia, func() error, error)
 	MediaKind() MediaKind
 }
 
@@ -50,6 +65,21 @@ type DownloadRequest struct {
 type YTDLPDownloader struct {
 	request         DownloadRequest
 	ytdlpConfigPath string
+}
+
+// ytdlpInfoJSON contains the yt-dlp metadata fields gatonaranja uses after a
+// download. Unknown fields are intentionally ignored.
+type ytdlpInfoJSON struct {
+	Title      string `json:"title"`
+	FullTitle  string `json:"fulltitle"`
+	Track      string `json:"track"`
+	AltTitle   string `json:"alt_title"`
+	MetaTitle  string `json:"meta_title"`
+	Artist     string `json:"artist"`
+	Creator    string `json:"creator"`
+	Uploader   string `json:"uploader"`
+	Channel    string `json:"channel"`
+	MetaArtist string `json:"meta_artist"`
 }
 
 // NewYTDLPDownloader creates a MediaDownloader that applies the given explicit
@@ -234,15 +264,16 @@ func (d YTDLPDownloader) MediaKind() MediaKind {
 
 // BuildCommand builds the yt-dlp command for the wrapped download request,
 // explicit yt-dlp configuration file path, and output directory, including
-// optional section download, embedded metadata, video/audio merge, and audio
-// extraction flags. It returns the arguments ready to be passed to
-// "[exec.Command]".
+// optional section download, sidecar info JSON, embedded metadata, video/audio
+// merge, and audio extraction flags. It returns the arguments ready for
+// exec.Command.
 func (d YTDLPDownloader) BuildCommand(outputDir string) ([]string, error) {
 	cmd := []string{
 		"yt-dlp",
 		"--no-simulate",
 		"--no-playlist",
 		"--print", "after_move:filepath",
+		"--write-info-json",
 		"--ignore-config",
 	}
 
@@ -302,12 +333,12 @@ func (d YTDLPDownloader) BuildCommand(outputDir string) ([]string, error) {
 
 // Download executes yt-dlp for the wrapped request using the provided context
 // and explicit yt-dlp configuration file path, and returns the final output
-// filepath reported by yt-dlp plus a cleanup function that removes temporary
-// files after the caller is done with the filepath.
-func (d YTDLPDownloader) Download(ctx context.Context) (string, func() error, error) {
+// media reported by yt-dlp plus a cleanup function that removes temporary
+// files after the caller is done with the media filepath.
+func (d YTDLPDownloader) Download(ctx context.Context) (DownloadedMedia, func() error, error) {
 	tempDir, err := os.MkdirTemp("", "gatonaranja-*")
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to create temporary download directory: %w", err)
+		return DownloadedMedia{}, nil, fmt.Errorf("failed to create temporary download directory: %w", err)
 	}
 	cleanup := func() error {
 		return os.RemoveAll(tempDir)
@@ -319,7 +350,7 @@ func (d YTDLPDownloader) Download(ctx context.Context) (string, func() error, er
 	cmdArgs, err := d.BuildCommand(tempDir)
 	if err != nil {
 		cleanupOnError()
-		return "", nil, err
+		return DownloadedMedia{}, nil, err
 	}
 
 	cmd := commandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
@@ -332,31 +363,71 @@ func (d YTDLPDownloader) Download(ctx context.Context) (string, func() error, er
 	err = cmd.Run()
 	if err != nil {
 		cleanupOnError()
-		return "", nil, fmt.Errorf("yt-dlp failed: %w: %s", err, stderr.String())
+		return DownloadedMedia{}, nil, fmt.Errorf("yt-dlp failed: %w: %s", err, stderr.String())
 	}
 
 	outputPath := strings.TrimSpace(stdout.String())
 	if outputPath == "" {
 		cleanupOnError()
-		return "", nil, errors.New("yt-dlp succeeded but did not print the output filepath")
+		return DownloadedMedia{}, nil, errors.New("yt-dlp succeeded but did not print the output filepath")
 	}
 
 	if !pathIsInsideDir(outputPath, tempDir) {
 		cleanupOnError()
-		return "", nil, fmt.Errorf("yt-dlp printed output filepath %q outside temporary directory %q", outputPath, tempDir)
+		return DownloadedMedia{}, nil, fmt.Errorf("yt-dlp printed output filepath %q outside temporary directory %q", outputPath, tempDir)
 	}
 
 	fileInfo, err := os.Stat(outputPath)
 	if err != nil {
 		cleanupOnError()
-		return "", nil, fmt.Errorf("yt-dlp printed output filepath %q but it is not accessible: %w", outputPath, err)
+		return DownloadedMedia{}, nil, fmt.Errorf("yt-dlp printed output filepath %q but it is not accessible: %w", outputPath, err)
 	}
 	if !fileInfo.Mode().IsRegular() {
 		cleanupOnError()
-		return "", nil, fmt.Errorf("yt-dlp printed output filepath %q but it is not a regular file", outputPath)
+		return DownloadedMedia{}, nil, fmt.Errorf("yt-dlp printed output filepath %q but it is not a regular file", outputPath)
 	}
 
-	return outputPath, cleanup, nil
+	return DownloadedMedia{
+		FilePath: outputPath,
+		Metadata: readYTDLPInfoJSONMetadata(tempDir),
+	}, cleanup, nil
+}
+
+// readYTDLPInfoJSONMetadata reads the metadata file written by yt-dlp and
+// returns the fields useful to Telegram. Metadata is best-effort: downloads
+// should still succeed even if the sidecar file is missing or malformed.
+func readYTDLPInfoJSONMetadata(outputDir string) MediaMetadata {
+	matches, err := filepath.Glob(filepath.Join(outputDir, "*.info.json"))
+	if err != nil || len(matches) == 0 {
+		return MediaMetadata{}
+	}
+
+	infoJSONBytes, err := os.ReadFile(matches[0])
+	if err != nil {
+		return MediaMetadata{}
+	}
+
+	var info ytdlpInfoJSON
+	if err := json.Unmarshal(infoJSONBytes, &info); err != nil {
+		return MediaMetadata{}
+	}
+
+	return MediaMetadata{
+		Title:  firstNonEmpty(info.MetaTitle, info.Track, info.Title, info.FullTitle, info.AltTitle),
+		Artist: firstNonEmpty(info.MetaArtist, info.Artist, info.Creator, info.Uploader, info.Channel),
+	}
+}
+
+// firstNonEmpty returns the first value that is not empty after trimming
+// surrounding whitespace.
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 // pathIsInsideDir reports whether path is located inside dir after resolving

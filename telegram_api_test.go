@@ -441,6 +441,12 @@ func TestTelegramAPIClientSendAudio(t *testing.T) {
 		if got := fields["reply_to_message_id"]; got != "" {
 			t.Fatalf("reply_to_message_id = %q, want empty string", got)
 		}
+		if got, want := fields["title"], "Que Me Quedes Tú"; got != want {
+			t.Fatalf("title = %q, want %q", got, want)
+		}
+		if got, want := fields["performer"], "Shakira"; got != want {
+			t.Fatalf("performer = %q, want %q", got, want)
+		}
 		if got, want := fileFieldName, "audio"; got != want {
 			t.Fatalf("file field name = %q, want %q", got, want)
 		}
@@ -460,7 +466,13 @@ func TestTelegramAPIClientSendAudio(t *testing.T) {
 		}`), nil
 	})
 
-	message, err := client.SendAudio(context.Background(), 555, 0, audioPath)
+	message, err := client.SendAudio(
+		context.Background(),
+		555,
+		0,
+		audioPath,
+		TelegramAudioMetadata{Title: " Que Me Quedes Tú ", Performer: " Shakira "},
+	)
 	if err != nil {
 		t.Fatalf("SendAudio() error = %v, want nil", err)
 	}
@@ -478,7 +490,7 @@ func TestTelegramAPIClientSendAudioReturnsOpenFileError(t *testing.T) {
 		return nil, nil
 	})
 
-	_, err := client.SendAudio(context.Background(), 1, 2, "/path/that/does/not/exist.m4a")
+	_, err := client.SendAudio(context.Background(), 1, 2, "/path/that/does/not/exist.m4a", TelegramAudioMetadata{})
 	if err == nil {
 		t.Fatal("SendAudio() error = nil, want non-nil")
 	}

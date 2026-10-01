@@ -27,6 +27,20 @@ const telegramBotMaxUploadSizeBytes = 50 * 1024 * 1024
 // upload size limit.
 var ErrTelegramMediaTooLarge = errors.New("telegram media file is too large")
 
+// TelegramAudioMetadata contains optional Bot API fields sent with audio
+// uploads so Telegram does not need to infer them from file tags.
+type TelegramAudioMetadata struct {
+	Title     string
+	Performer string
+}
+
+// telegramMultipartField represents an extra multipart form field for a media
+// upload.
+type telegramMultipartField struct {
+	name  string
+	value string
+}
+
 // TelegramAPIClient is a small stdlib-only client for the Telegram Bot API.
 type TelegramAPIClient struct {
 	baseURL    string
@@ -114,7 +128,8 @@ func (c *TelegramAPIClient) GetMe(ctx context.Context) (*TelegramAPIUser, error)
 }
 
 // SendText sends a text message to the given Telegram chat. If
-// replyToMessageID != 0, the message is sent as a reply to that message.
+// replyToMessageID is greater than 0, the message is sent as a reply to that
+// message.
 func (c *TelegramAPIClient) SendText(
 	ctx context.Context,
 	chatID int64,
@@ -135,8 +150,8 @@ func (c *TelegramAPIClient) SendText(
 	return &message, nil
 }
 
-// SendVideo sends a video file to the given Telegram chat. If
-// replyToMessageID != 0, the video is sent as a reply to that message.
+// SendVideo sends a video file to the given Telegram chat. If replyToMessageID
+// is greater than 0, the video is sent as a reply to that message.
 func (c *TelegramAPIClient) SendVideo(
 	ctx context.Context,
 	chatID int64,
@@ -144,25 +159,52 @@ func (c *TelegramAPIClient) SendVideo(
 	videoPath string,
 ) (*TelegramAPIMessage, error) {
 	var message TelegramAPIMessage
-	if err := c.sendMedia(ctx, "sendVideo", "video", chatID, replyToMessageID, videoPath, &message); err != nil {
+	if err := c.sendMedia(ctx, "sendVideo", "video", chatID, replyToMessageID, videoPath, nil, &message); err != nil {
 		return nil, err
 	}
 	return &message, nil
 }
 
-// SendAudio sends an audio file to the given Telegram chat. If
-// replyToMessageID != 0, the audio is sent as a reply to that message.
+// SendAudio sends an audio file to the given Telegram chat. If replyToMessageID
+// is greater than 0, the audio is sent as a reply to that message. When
+// provided, metadata is sent through Telegram's explicit title and performer
+// fields.
 func (c *TelegramAPIClient) SendAudio(
 	ctx context.Context,
 	chatID int64,
 	replyToMessageID int64,
 	audioPath string,
+	metadata TelegramAudioMetadata,
 ) (*TelegramAPIMessage, error) {
 	var message TelegramAPIMessage
-	if err := c.sendMedia(ctx, "sendAudio", "audio", chatID, replyToMessageID, audioPath, &message); err != nil {
+	if err := c.sendMedia(
+		ctx,
+		"sendAudio",
+		"audio",
+		chatID,
+		replyToMessageID,
+		audioPath,
+		audioMetadataFields(metadata),
+		&message,
+	); err != nil {
 		return nil, err
 	}
 	return &message, nil
+}
+
+// audioMetadataFields converts non-empty audio metadata into Telegram Bot API
+// multipart fields.
+func audioMetadataFields(metadata TelegramAudioMetadata) []telegramMultipartField {
+	var fields []telegramMultipartField
+	title := strings.TrimSpace(metadata.Title)
+	if title != "" {
+		fields = append(fields, telegramMultipartField{name: "title", value: title})
+	}
+	performer := strings.TrimSpace(metadata.Performer)
+	if performer != "" {
+		fields = append(fields, telegramMultipartField{name: "performer", value: performer})
+	}
+	return fields
 }
 
 // get sends a Telegram Bot API GET request for the given method and decodes the
@@ -208,7 +250,7 @@ func (c *TelegramAPIClient) postJSON(
 }
 
 // sendMedia uploads a local media file to Telegram using the given Bot API
-// method and multipart field name.
+// method, multipart file field name, and optional extra multipart fields.
 func (c *TelegramAPIClient) sendMedia(
 	ctx context.Context,
 	method string,
@@ -216,6 +258,7 @@ func (c *TelegramAPIClient) sendMedia(
 	chatID int64,
 	replyToMessageID int64,
 	filePath string,
+	extraFields []telegramMultipartField,
 	result any,
 ) error {
 	filePath = strings.TrimSpace(filePath)
@@ -251,6 +294,7 @@ func (c *TelegramAPIClient) sendMedia(
 		filePath,
 		chatID,
 		replyToMessageID,
+		extraFields,
 	)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.methodURL(method), bodyReader)
@@ -274,14 +318,16 @@ func (c *TelegramAPIClient) sendMedia(
 	return nil
 }
 
-// streamTelegramMediaBody builds a multipart Telegram upload body and streams
-// it through a pipe while the HTTP client consumes it.
+// streamTelegramMediaBody builds a multipart Telegram upload body with required
+// chat fields, optional extra fields, and the media file, then streams it
+// through a pipe while the HTTP client consumes it.
 func streamTelegramMediaBody(
 	file *os.File,
 	fieldName string,
 	filePath string,
 	chatID int64,
 	replyToMessageID int64,
+	extraFields []telegramMultipartField,
 ) (*io.PipeReader, string, <-chan error) {
 	bodyReader, bodyWriter := io.Pipe()
 	writer := multipart.NewWriter(bodyWriter)
@@ -303,6 +349,12 @@ func streamTelegramMediaBody(
 		if replyToMessageID > 0 {
 			if err := writer.WriteField("reply_to_message_id", strconv.FormatInt(replyToMessageID, 10)); err != nil {
 				fail(fmt.Errorf("write Telegram multipart field reply_to_message_id: %w", err))
+				return
+			}
+		}
+		for _, field := range extraFields {
+			if err := writer.WriteField(field.name, field.value); err != nil {
+				fail(fmt.Errorf("write Telegram multipart field %s: %w", field.name, err))
 				return
 			}
 		}

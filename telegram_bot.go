@@ -25,7 +25,13 @@ type TelegramBotClient interface {
 	ReceiveUpdates(ctx context.Context, offset int64, timeoutSeconds int) ([]TelegramAPIUpdate, error)
 	SendText(ctx context.Context, chatID int64, replyToMessageID int64, text string) (*TelegramAPIMessage, error)
 	SendVideo(ctx context.Context, chatID int64, replyToMessageID int64, videoPath string) (*TelegramAPIMessage, error)
-	SendAudio(ctx context.Context, chatID int64, replyToMessageID int64, audioPath string) (*TelegramAPIMessage, error)
+	SendAudio(
+		ctx context.Context,
+		chatID int64,
+		replyToMessageID int64,
+		audioPath string,
+		metadata TelegramAudioMetadata,
+	) (*TelegramAPIMessage, error)
 }
 
 // RunTelegramBot receives Telegram updates using long polling and calls

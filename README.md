@@ -334,8 +334,9 @@ https://www.youtube.com/watch?v=AqjB8DGt85U audio
 ```
 
 Audio requests are sent back as Telegram-friendly M4A files when possible.
-Metadata is embedded when available; if YouTube does not provide a real artist
-field, gatonaranja falls back to the uploader as the audio artist.
+Metadata is embedded when available and the audio title/artist are also sent to
+Telegram explicitly. If YouTube does not provide a real artist field,
+gatonaranja falls back to the uploader as the audio artist.
 
 ### Download an Audio Clip
 

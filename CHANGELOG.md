@@ -9,8 +9,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
-- Embed available source metadata in downloaded audio and video files, using the
-  uploader as the audio artist fallback when no artist field is available.
+- Embed available source metadata in downloaded audio and video files, and send
+  audio title/artist metadata explicitly to Telegram when available. If no
+  artist field is available, gatonaranja falls back to the uploader as the audio
+  artist.
 
 ## [1.3.1] - 2026-09-25
 
