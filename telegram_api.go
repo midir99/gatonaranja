@@ -41,6 +41,12 @@ type telegramMultipartField struct {
 	value string
 }
 
+// telegramReplyParameters represents Telegram's reply_parameters object for
+// sending replies to messages.
+type telegramReplyParameters struct {
+	MessageID int64 `json:"message_id"`
+}
+
 // TelegramAPIClient is a small stdlib-only client for the Telegram Bot API.
 type TelegramAPIClient struct {
 	baseURL    string
@@ -141,7 +147,9 @@ func (c *TelegramAPIClient) SendText(
 		"text":    text,
 	}
 	if replyToMessageID > 0 {
-		payload["reply_to_message_id"] = replyToMessageID
+		payload["reply_parameters"] = telegramReplyParameters{
+			MessageID: replyToMessageID,
+		}
 	}
 	var message TelegramAPIMessage
 	if err := c.postJSON(ctx, "sendMessage", payload, &message); err != nil {
@@ -347,8 +355,13 @@ func streamTelegramMediaBody(
 			return
 		}
 		if replyToMessageID > 0 {
-			if err := writer.WriteField("reply_to_message_id", strconv.FormatInt(replyToMessageID, 10)); err != nil {
-				fail(fmt.Errorf("write Telegram multipart field reply_to_message_id: %w", err))
+			replyParameters, err := json.Marshal(telegramReplyParameters{MessageID: replyToMessageID})
+			if err != nil {
+				fail(fmt.Errorf("marshal Telegram reply parameters: %w", err))
+				return
+			}
+			if err := writer.WriteField("reply_parameters", string(replyParameters)); err != nil {
+				fail(fmt.Errorf("write Telegram multipart field reply_parameters: %w", err))
 				return
 			}
 		}

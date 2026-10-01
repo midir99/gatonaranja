@@ -13,6 +13,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   audio title/artist metadata explicitly to Telegram when available. If no
   artist field is available, gatonaranja falls back to the uploader as the audio
   artist.
+- Use Telegram's current `reply_parameters` field when sending replies.
 
 ## [1.3.1] - 2026-09-25
 
