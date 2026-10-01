@@ -318,7 +318,8 @@ https://www.youtube.com/watch?v=AqjB8DGt85U
 
 Video requests prefer Telegram-friendly MP4 output around 480p. When YouTube
 only provides separate DASH video and audio streams, gatonaranja uses `ffmpeg`
-through `yt-dlp` to merge them into a single video file.
+through `yt-dlp` to merge them into a single video file. When available,
+metadata from the source video is embedded in the final file.
 
 ### Download a Video Clip
 
@@ -333,6 +334,9 @@ https://www.youtube.com/watch?v=AqjB8DGt85U audio
 ```
 
 Audio requests are sent back as Telegram-friendly M4A files when possible.
+Metadata is embedded when available and the audio title/artist are also sent to
+Telegram explicitly. If YouTube does not provide a real artist field,
+gatonaranja falls back to the uploader as the audio artist.
 
 ### Download an Audio Clip
 

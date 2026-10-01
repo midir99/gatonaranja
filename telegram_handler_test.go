@@ -27,6 +27,7 @@ type handlerSendMediaCall struct {
 	chatID           int64
 	replyToMessageID int64
 	filePath         string
+	audioMetadata    TelegramAudioMetadata
 }
 
 type handlerTestBotClient struct {
@@ -87,12 +88,14 @@ func (c *handlerTestBotClient) SendAudio(
 	chatID int64,
 	replyToMessageID int64,
 	audioPath string,
+	metadata TelegramAudioMetadata,
 ) (*TelegramAPIMessage, error) {
 	c.sendAudioCalls = append(c.sendAudioCalls, handlerSendMediaCall{
 		ctx:              ctx,
 		chatID:           chatID,
 		replyToMessageID: replyToMessageID,
 		filePath:         audioPath,
+		audioMetadata:    metadata,
 	})
 	if c.sendAudioErr != nil {
 		return nil, c.sendAudioErr
@@ -102,6 +105,7 @@ func (c *handlerTestBotClient) SendAudio(
 
 type handlerTestMediaDownloader struct {
 	filename            string
+	metadata            MediaMetadata
 	err                 error
 	mediaKind           MediaKind
 	cleanupErr          error
@@ -112,17 +116,21 @@ type handlerTestMediaDownloader struct {
 	downloadDeadline    time.Time
 }
 
-func (d *handlerTestMediaDownloader) Download(ctx context.Context) (string, func() error, error) {
+func (d *handlerTestMediaDownloader) Download(ctx context.Context) (DownloadedMedia, func() error, error) {
 	d.downloadCalled = true
 	d.downloadCtx = ctx
 	d.downloadDeadline, d.downloadHasDeadline = ctx.Deadline()
 	if d.err != nil {
-		return "", nil, d.err
+		return DownloadedMedia{}, nil, d.err
 	}
-	return d.filename, func() error {
+	cleanup := func() error {
 		d.cleanupCalled = true
 		return d.cleanupErr
-	}, nil
+	}
+	return DownloadedMedia{
+		FilePath: d.filename,
+		Metadata: d.metadata,
+	}, cleanup, nil
 }
 
 func (d *handlerTestMediaDownloader) MediaKind() MediaKind {
@@ -624,6 +632,7 @@ func TestHandleDownloadRequestAudioSuccessAndCleanup(t *testing.T) {
 	client := &handlerTestBotClient{}
 	downloader := &handlerTestMediaDownloader{
 		filename:  "clip.m4a",
+		metadata:  MediaMetadata{Title: "Que Me Quedes Tú", Artist: "Shakira"},
 		mediaKind: MediaAudio,
 	}
 
@@ -641,6 +650,12 @@ func TestHandleDownloadRequestAudioSuccessAndCleanup(t *testing.T) {
 	}
 	if got, want := client.sendAudioCalls[0].filePath, "clip.m4a"; got != want {
 		t.Fatalf("audio filepath = %q, want %q", got, want)
+	}
+	if got, want := client.sendAudioCalls[0].audioMetadata.Title, "Que Me Quedes Tú"; got != want {
+		t.Fatalf("audio title = %q, want %q", got, want)
+	}
+	if got, want := client.sendAudioCalls[0].audioMetadata.Performer, "Shakira"; got != want {
+		t.Fatalf("audio performer = %q, want %q", got, want)
 	}
 	if got, want := len(client.sendTextCalls), 0; got != want {
 		t.Fatalf("len(sendTextCalls) = %d, want %d", got, want)

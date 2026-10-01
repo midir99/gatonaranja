@@ -236,7 +236,7 @@ func handleDownloadRequest(
 ) {
 	downloadCtx, cancelDownload := context.WithTimeout(ctx, downloadTimeout)
 	defer cancelDownload()
-	mediaFilename, cleanup, err := mediaDownloader.Download(downloadCtx)
+	downloadedMedia, cleanup, err := mediaDownloader.Download(downloadCtx)
 
 	sendCtx, cancelSend := context.WithTimeout(ctx, telegramSendGrace)
 	defer cancelSend()
@@ -252,10 +252,20 @@ func handleDownloadRequest(
 		sendReply(sendCtx, client, logger, message, "I could not download your request 😿")
 		return
 	}
+	mediaFilename := downloadedMedia.FilePath
 
 	switch mediaDownloader.MediaKind() {
 	case MediaAudio:
-		_, err = client.SendAudio(sendCtx, message.Chat.ID, message.MessageID, mediaFilename)
+		_, err = client.SendAudio(
+			sendCtx,
+			message.Chat.ID,
+			message.MessageID,
+			mediaFilename,
+			TelegramAudioMetadata{
+				Title:     downloadedMedia.Metadata.Title,
+				Performer: downloadedMedia.Metadata.Artist,
+			},
+		)
 	case MediaVideo:
 		_, err = client.SendVideo(sendCtx, message.Chat.ID, message.MessageID, mediaFilename)
 	default:

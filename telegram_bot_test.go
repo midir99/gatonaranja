@@ -56,6 +56,7 @@ func (c *fakeTelegramBotClient) SendAudio(
 	chatID int64,
 	replyToMessageID int64,
 	audioPath string,
+	metadata TelegramAudioMetadata,
 ) (*TelegramAPIMessage, error) {
 	panic("unexpected SendAudio call in RunTelegramBot test")
 }

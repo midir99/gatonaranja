@@ -290,12 +290,15 @@ func TestTelegramAPIClientSendText(t *testing.T) {
 		bodyString := string(body)
 		for _, want := range []string{
 			`"chat_id":12345`,
-			`"reply_to_message_id":67890`,
+			`"reply_parameters":{"message_id":67890}`,
 			`"text":"hello there"`,
 		} {
 			if !strings.Contains(bodyString, want) {
 				t.Fatalf("request body = %q, want substring %q", bodyString, want)
 			}
+		}
+		if strings.Contains(bodyString, `"reply_to_message_id"`) {
+			t.Fatalf("request body = %q, want no reply_to_message_id field", bodyString)
 		}
 
 		return newHTTPResponse(http.StatusOK, `{
@@ -342,6 +345,9 @@ func TestTelegramAPIClientSendTextWithoutReplyToMessageID(t *testing.T) {
 		if strings.Contains(bodyString, `"reply_to_message_id"`) {
 			t.Fatalf("request body = %q, want no reply_to_message_id field", bodyString)
 		}
+		if strings.Contains(bodyString, `"reply_parameters"`) {
+			t.Fatalf("request body = %q, want no reply_parameters field", bodyString)
+		}
 
 		return newHTTPResponse(http.StatusOK, `{
 			"ok": true,
@@ -386,8 +392,11 @@ func TestTelegramAPIClientSendVideo(t *testing.T) {
 		if got, want := fields["chat_id"], "111"; got != want {
 			t.Fatalf("chat_id = %q, want %q", got, want)
 		}
-		if got, want := fields["reply_to_message_id"], "222"; got != want {
-			t.Fatalf("reply_to_message_id = %q, want %q", got, want)
+		if got := fields["reply_to_message_id"]; got != "" {
+			t.Fatalf("reply_to_message_id = %q, want empty string", got)
+		}
+		if got, want := fields["reply_parameters"], `{"message_id":222}`; got != want {
+			t.Fatalf("reply_parameters = %q, want %q", got, want)
 		}
 		if got, want := fileFieldName, "video"; got != want {
 			t.Fatalf("file field name = %q, want %q", got, want)
@@ -441,6 +450,15 @@ func TestTelegramAPIClientSendAudio(t *testing.T) {
 		if got := fields["reply_to_message_id"]; got != "" {
 			t.Fatalf("reply_to_message_id = %q, want empty string", got)
 		}
+		if got := fields["reply_parameters"]; got != "" {
+			t.Fatalf("reply_parameters = %q, want empty string", got)
+		}
+		if got, want := fields["title"], "Que Me Quedes Tú"; got != want {
+			t.Fatalf("title = %q, want %q", got, want)
+		}
+		if got, want := fields["performer"], "Shakira"; got != want {
+			t.Fatalf("performer = %q, want %q", got, want)
+		}
 		if got, want := fileFieldName, "audio"; got != want {
 			t.Fatalf("file field name = %q, want %q", got, want)
 		}
@@ -460,7 +478,13 @@ func TestTelegramAPIClientSendAudio(t *testing.T) {
 		}`), nil
 	})
 
-	message, err := client.SendAudio(context.Background(), 555, 0, audioPath)
+	message, err := client.SendAudio(
+		context.Background(),
+		555,
+		0,
+		audioPath,
+		TelegramAudioMetadata{Title: " Que Me Quedes Tú ", Performer: " Shakira "},
+	)
 	if err != nil {
 		t.Fatalf("SendAudio() error = %v, want nil", err)
 	}
@@ -478,7 +502,7 @@ func TestTelegramAPIClientSendAudioReturnsOpenFileError(t *testing.T) {
 		return nil, nil
 	})
 
-	_, err := client.SendAudio(context.Background(), 1, 2, "/path/that/does/not/exist.m4a")
+	_, err := client.SendAudio(context.Background(), 1, 2, "/path/that/does/not/exist.m4a", TelegramAudioMetadata{})
 	if err == nil {
 		t.Fatal("SendAudio() error = nil, want non-nil")
 	}

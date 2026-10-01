@@ -739,6 +739,58 @@ func ytdlpHelperOutputPath(args []string) (string, error) {
 	return filepath.Join(filepath.Dir(outputTemplate), "gatonaranja-ytdlp-helper-file.mp4"), nil
 }
 
+func ytdlpHelperInfoJSONPath(outputPath string) string {
+	return strings.TrimSuffix(outputPath, filepath.Ext(outputPath)) + ".info.json"
+}
+
+func TestReadYTDLPInfoJSONMetadata(t *testing.T) {
+	t.Run("reads title and artist", func(t *testing.T) {
+		tempDir := t.TempDir()
+		infoJSONPath := filepath.Join(tempDir, "clip.info.json")
+		infoJSON := `{"title":"Que Me Quedes Tú","artist":"Shakira"}`
+		if err := os.WriteFile(infoJSONPath, []byte(infoJSON), 0o600); err != nil {
+			t.Fatalf("WriteFile() error = %v, want nil", err)
+		}
+
+		got := readYTDLPInfoJSONMetadata(tempDir)
+
+		want := MediaMetadata{Title: "Que Me Quedes Tú", Artist: "Shakira"}
+		if got != want {
+			t.Fatalf("got metadata %+v, want %+v", got, want)
+		}
+	})
+
+	t.Run("uses metadata fallbacks", func(t *testing.T) {
+		tempDir := t.TempDir()
+		infoJSONPath := filepath.Join(tempDir, "clip.info.json")
+		infoJSON := `{"title":"Video title","uploader":"Uploader","meta_artist":"Meta Artist","meta_title":"Meta Title"}`
+		if err := os.WriteFile(infoJSONPath, []byte(infoJSON), 0o600); err != nil {
+			t.Fatalf("WriteFile() error = %v, want nil", err)
+		}
+
+		got := readYTDLPInfoJSONMetadata(tempDir)
+
+		want := MediaMetadata{Title: "Meta Title", Artist: "Meta Artist"}
+		if got != want {
+			t.Fatalf("got metadata %+v, want %+v", got, want)
+		}
+	})
+
+	t.Run("malformed metadata returns empty metadata", func(t *testing.T) {
+		tempDir := t.TempDir()
+		infoJSONPath := filepath.Join(tempDir, "clip.info.json")
+		if err := os.WriteFile(infoJSONPath, []byte(`not-json`), 0o600); err != nil {
+			t.Fatalf("WriteFile() error = %v, want nil", err)
+		}
+
+		got := readYTDLPInfoJSONMetadata(tempDir)
+
+		if got != (MediaMetadata{}) {
+			t.Fatalf("got metadata %+v, want empty metadata", got)
+		}
+	})
+}
+
 func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 	const (
 		wantVideoFormat = "bestvideo*[height<=480][ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/" +
@@ -746,6 +798,7 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 			"best[height<=480][ext=mp4]/best[height<=480]/best[ext=mp4]/best"
 		wantAudioFormat = "bestaudio[ext=m4a]/bestaudio/best"
 		wantFormatSort  = "res:480,+size,+br,+fps"
+		wantAudioArtist = "%(artist,uploader|)s:%(meta_artist)s"
 	)
 	outputDir := filepath.Join(os.TempDir(), "gatonaranja-test-output")
 	wantOutput := filepath.Join(outputDir, "%(title)s.%(ext)s")
@@ -769,7 +822,9 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--no-simulate",
 				"--no-playlist",
 				"--print", "after_move:filepath",
+				"--write-info-json",
 				"--ignore-config",
+				"--embed-metadata",
 				"--merge-output-format", "mp4",
 				"--format", wantVideoFormat,
 				"--format-sort", wantFormatSort,
@@ -791,8 +846,10 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--no-simulate",
 				"--no-playlist",
 				"--print", "after_move:filepath",
+				"--write-info-json",
 				"--ignore-config",
 				"--download-sections", "*00:00-00:05",
+				"--embed-metadata",
 				"--merge-output-format", "mp4",
 				"--format", wantVideoFormat,
 				"--format-sort", wantFormatSort,
@@ -814,10 +871,13 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--no-simulate",
 				"--no-playlist",
 				"--print", "after_move:filepath",
+				"--write-info-json",
 				"--ignore-config",
 				"--download-sections", "*00:00-00:05",
+				"--embed-metadata",
 				"--extract-audio",
 				"--audio-format", "m4a",
+				"--parse-metadata", wantAudioArtist,
 				"--format", wantAudioFormat,
 				"--format-sort", wantFormatSort,
 				"--output", wantOutput,
@@ -838,8 +898,10 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--no-simulate",
 				"--no-playlist",
 				"--print", "after_move:filepath",
+				"--write-info-json",
 				"--ignore-config",
 				"--config-locations", "/home/arthur/.config/gatonaranja/yt-dlp.conf",
+				"--embed-metadata",
 				"--merge-output-format", "mp4",
 				"--format", wantVideoFormat,
 				"--format-sort", wantFormatSort,
@@ -872,8 +934,10 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--no-simulate",
 				"--no-playlist",
 				"--print", "after_move:filepath",
+				"--write-info-json",
 				"--ignore-config",
 				"--download-sections", "*00:10-00:20",
+				"--embed-metadata",
 				"--merge-output-format", "mp4",
 				"--format", wantVideoFormat,
 				"--format-sort", wantFormatSort,
@@ -895,8 +959,10 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--no-simulate",
 				"--no-playlist",
 				"--print", "after_move:filepath",
+				"--write-info-json",
 				"--ignore-config",
 				"--download-sections", "*01:00:00-01:01:05",
+				"--embed-metadata",
 				"--merge-output-format", "mp4",
 				"--format", wantVideoFormat,
 				"--format-sort", wantFormatSort,
@@ -918,7 +984,9 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--no-simulate",
 				"--no-playlist",
 				"--print", "after_move:filepath",
+				"--write-info-json",
 				"--ignore-config",
+				"--embed-metadata",
 				"--merge-output-format", "mp4",
 				"--format", wantVideoFormat,
 				"--format-sort", wantFormatSort,
@@ -940,9 +1008,12 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--no-simulate",
 				"--no-playlist",
 				"--print", "after_move:filepath",
+				"--write-info-json",
 				"--ignore-config",
+				"--embed-metadata",
 				"--extract-audio",
 				"--audio-format", "m4a",
+				"--parse-metadata", wantAudioArtist,
 				"--format", wantAudioFormat,
 				"--format-sort", wantFormatSort,
 				"--output", wantOutput,
@@ -963,10 +1034,13 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--no-simulate",
 				"--no-playlist",
 				"--print", "after_move:filepath",
+				"--write-info-json",
 				"--ignore-config",
 				"--download-sections", "*00:30-inf",
+				"--embed-metadata",
 				"--extract-audio",
 				"--audio-format", "m4a",
+				"--parse-metadata", wantAudioArtist,
 				"--format", wantAudioFormat,
 				"--format-sort", wantFormatSort,
 				"--output", wantOutput,
@@ -1020,9 +1094,12 @@ func TestYTDLPDownloaderBuildCommand(t *testing.T) {
 				"--no-simulate",
 				"--no-playlist",
 				"--print", "after_move:filepath",
+				"--write-info-json",
 				"--ignore-config",
+				"--embed-metadata",
 				"--extract-audio",
 				"--audio-format", "m4a",
+				"--parse-metadata", wantAudioArtist,
 				"--format", wantAudioFormat,
 				"--format-sort", wantFormatSort,
 				"--output", wantOutput,
@@ -1138,6 +1215,11 @@ func TestHelperProcess(_ *testing.T) {
 			fmt.Fprint(os.Stderr, err.Error())
 			os.Exit(2)
 		}
+		infoJSON := `{"title":"Que Me Quedes Tú","artist":"Shakira","uploader":"shakiraVEVO"}`
+		if err := os.WriteFile(ytdlpHelperInfoJSONPath(outputPath), []byte(infoJSON), 0o600); err != nil {
+			fmt.Fprint(os.Stderr, err.Error())
+			os.Exit(2)
+		}
 		fmt.Fprint(os.Stdout, outputPath)
 		os.Exit(0)
 	case "empty-success":
@@ -1227,6 +1309,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 		downloader      YTDLPDownloader
 		funcCommand     func(ctx context.Context, name string, args ...string) *exec.Cmd
 		wantFilename    string
+		wantMetadata    MediaMetadata
 		wantErr         bool
 		wantErrContains []string
 	}{
@@ -1242,6 +1325,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				return helperCommand(ctx, "success", args...)
 			},
 			"gatonaranja-ytdlp-helper-file.mp4",
+			MediaMetadata{Title: "Que Me Quedes Tú", Artist: "Shakira"},
 			false,
 			[]string{},
 		},
@@ -1257,6 +1341,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				return helperCommand(ctx, "success", args...)
 			},
 			"",
+			MediaMetadata{},
 			true,
 			[]string{"start second must be lower than end second"},
 		},
@@ -1272,6 +1357,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				return helperCommand(ctx, "empty-success", args...)
 			},
 			"",
+			MediaMetadata{},
 			true,
 			[]string{"yt-dlp succeeded but did not print the output filepath"},
 		},
@@ -1287,6 +1373,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				return helperCommand(ctx, "success-with-spaces", args...)
 			},
 			"gatonaranja-ytdlp-helper-file.mp4",
+			MediaMetadata{},
 			false,
 			[]string{},
 		},
@@ -1302,6 +1389,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				return helperCommand(ctx, "stderr-and-fail", args...)
 			},
 			"",
+			MediaMetadata{},
 			true,
 			[]string{"yt-dlp failed", "error"},
 		},
@@ -1317,6 +1405,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				return helperCommand(ctx, "fail-without-stderr", args...)
 			},
 			"",
+			MediaMetadata{},
 			true,
 			[]string{"yt-dlp failed"},
 		},
@@ -1332,6 +1421,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				return helperCommand(ctx, "multiline-stdout", args...)
 			},
 			"",
+			MediaMetadata{},
 			true,
 			[]string{"yt-dlp printed output filepath", "not accessible"},
 		},
@@ -1347,6 +1437,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				return helperCommand(ctx, "directory-output", args...)
 			},
 			"",
+			MediaMetadata{},
 			true,
 			[]string{"yt-dlp printed output filepath", "not a regular file"},
 		},
@@ -1362,6 +1453,7 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				return helperCommand(ctx, "outside-output", args...)
 			},
 			"",
+			MediaMetadata{},
 			true,
 			[]string{"yt-dlp printed output filepath", "outside temporary directory"},
 		},
@@ -1405,8 +1497,11 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				}
 			}
 			if tc.wantFilename != "" {
-				if filepath.Base(got) != tc.wantFilename {
-					t.Fatalf("got filename %q, want %q", filepath.Base(got), tc.wantFilename)
+				if filepath.Base(got.FilePath) != tc.wantFilename {
+					t.Fatalf("got filename %q, want %q", filepath.Base(got.FilePath), tc.wantFilename)
+				}
+				if got.Metadata != tc.wantMetadata {
+					t.Fatalf("got metadata %+v, want %+v", got.Metadata, tc.wantMetadata)
 				}
 				if cleanup == nil {
 					t.Fatal("cleanup = nil, want non-nil on success")
@@ -1420,8 +1515,8 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 				if _, statErr := os.Stat(commandOutputDir); !errors.Is(statErr, os.ErrNotExist) {
 					t.Fatalf("temporary directory still exists after cleanup: %v", statErr)
 				}
-			} else if got != "" {
-				t.Fatalf("got %q, want empty filepath", got)
+			} else if got.FilePath != "" {
+				t.Fatalf("got %q, want empty filepath", got.FilePath)
 			}
 		})
 	}
@@ -1446,8 +1541,8 @@ func TestYTDLPDownloaderDownload(t *testing.T) {
 		if err == nil {
 			t.Fatal("got nil error, want error")
 		}
-		if got != "" {
-			t.Fatalf("got %q, want %q", got, "")
+		if got.FilePath != "" {
+			t.Fatalf("got %q, want %q", got.FilePath, "")
 		}
 		if cleanup != nil {
 			t.Fatal("cleanup = non-nil, want nil")
